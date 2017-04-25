@@ -1,8 +1,8 @@
 #pragma once
 
-#define DEBUG_PRINT DbgPrint
 #define ERROR_PRINT DbgPrint
-#define TMP_PRINT
+#define INFO_PRINT  DbgPrint
+#define DEBUG_PRINT 
 
 #define ASSERT_BOOL_PRINT(x) if( !(x) ) DbgPrint( "ERROR: ASSERT: "## #x );
 
@@ -14,13 +14,4 @@ const WCHAR* GetPreopCallbackStatusString( FLT_PREOP_CALLBACK_STATUS PreopStatus
 NTSTATUS GetCurrentProcessKernelHandler( HANDLE* phProcess );
 NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess );
 NTSTATUS UserHandleToKernelHandle( HANDLE hProcess, HANDLE* phProcess ) ;
-NTSTATUS CloseHandleInProcess( HANDLE hFile, HANDLE hProcess );
-
-
-
-NTSTATUS NTAPI ZwQueryInformationProcess(			IN HANDLE						hProcessHandle,
-													IN PROCESSINFOCLASS				nProcessInformationClass,
-													OUT PVOID						pProcessInformation,
-													IN ULONG						ulProcessInformationLength,
-													OUT PULONG						pulReturnLength OPTIONAL
-													);
+NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS peProcess );

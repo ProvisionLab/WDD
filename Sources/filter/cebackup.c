@@ -20,6 +20,10 @@
     #pragma alloc_text(PAGE, BackupPortDisconnect)
 #endif
 
+#pragma data_seg("NONPAGE")
+BACKUP_DATA g_CeBackupData;
+#pragma data_seg()
+
 // Operation registration
 CONST FLT_OPERATION_REGISTRATION Callbacks[] = 
 {
@@ -387,7 +391,7 @@ NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Re
     UNICODE_STRING uniPortName;
     PSECURITY_DESCRIPTOR sd;
 
-    DEBUG_PRINT( "CB: INFO DriverEntry\n" );
+    INFO_PRINT( "CB: INFO DriverEntry\n" );
 
     RtlZeroMemory( &g_CeBackupData, sizeof(g_CeBackupData) );
 
@@ -419,6 +423,8 @@ NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Re
     if( ! NT_SUCCESS( status ) )
         goto Cleanup;
 
+    ExInitializeFastMutex( &g_CeBackupData.Guard );
+
     return status;
 
 Cleanup:
@@ -443,7 +449,7 @@ NTSTATUS CbUnload ( _In_ FLT_FILTER_UNLOAD_FLAGS Flags )
 
     PAGED_CODE();
 
-    DEBUG_PRINT( "CB: INFO CbUnload\n" );
+    INFO_PRINT( "CB: INFO CbUnload\n" );
 
     FltCloseCommunicationPort( g_CeBackupData.ServerPort );
 
@@ -501,11 +507,15 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     HANDLE hFile = NULL;
     PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
     PCB_INSTANCE_CONTEXT pInstanceContext = NULL;
-    PFILE_OBJECT pFileObject = NULL;
+    PFILE_OBJECT pSrcFileObject = NULL;
+    PFILE_OBJECT pDstFileObject = NULL;
+    HANDLE UserProcessKernel = NULL;
+    PEPROCESS UserProcess = NULL;
     HANDLE TargetHandle = NULL;
-    HANDLE SourceProcessHandle = NULL ;
+    HANDLE SourceProcessHandle = NULL;
+    HANDLE TargetProcessHandle = NULL;
     WCHAR strFileName[MAX_PATH_SIZE] = {0};
-    char Buffer[MAX_PATH_SIZE] = {0};
+    char BufferUniName[MAX_PATH_SIZE] = {0};
     WCHAR* strProcessName = L"";
 
     if( Data->Iopb->MajorFunction != IRP_MJ_CREATE )
@@ -515,9 +525,9 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     if( FlagOn( Data->Iopb->Parameters.Create.Options, FILE_DIRECTORY_FILE ) )
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
 
-    BOOLEAN isDir = FALSE;
-    status = FltIsDirectory( FltObjects->FileObject, FltObjects->Instance, &isDir );
-    if( NT_SUCCESS( status ) && isDir )
+    BOOLEAN bIsDir = FALSE;
+    status = FltIsDirectory( FltObjects->FileObject, FltObjects->Instance, &bIsDir );
+    if( NT_SUCCESS( status ) && bIsDir )
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
 
     //  Skip pre-rename operations which always open a directory
@@ -544,11 +554,15 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     // Skip if its opened for read
     if( ! FlagOn( Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, FILE_WRITE_DATA ) )
         return FLT_PREOP_SUCCESS_NO_CALLBACK;      
+/*
+    if( ! FltObjects->FileObject->WriteAccess ) // Not set in PreCreate yet!
+        goto Cleanup;
+*/
 
     status = FltGetFileNameInformation( Data, FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_DEFAULT, &nameInfo );
     if( ! NT_SUCCESS( status ) )
     {
-        //DEBUG_PRINT( "\n!!! ERROR FltGetFileNameInformation failed. Status=%S\n\n", GetStatusString( status ) );
+        DEBUG_PRINT( "\n!!! ERROR FltGetFileNameInformation failed. Status=%S\n\n", GetStatusString( status ) );
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -568,50 +582,52 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     RtlStringCbCopyW( strFileName, sizeof(strFileName), nameInfo->FinalComponent.Buffer );
 
 // TMP: FILTER OUT ONLY ONE OPERATION FOR NOW / File 777.txt
+/*
     UNICODE_STRING usStr777;
     RtlInitUnicodeString( &usStr777, L"777.txt" );
     if( ! RtlEqualUnicodeString( &nameInfo->FinalComponent, &usStr777, FALSE ) )
         goto Cleanup;
-//
+*/
 
     DWORD dwRetLen = 0;
-	status = ZwQueryInformationProcess( NtCurrentProcess(), ProcessImageFileName, Buffer, MAX_PATH_SIZE, &dwRetLen );
+	status = ZwQueryInformationProcess( NtCurrentProcess(), ProcessImageFileName, BufferUniName, MAX_PATH_SIZE, &dwRetLen );
     if( ! NT_SUCCESS(status) || ! dwRetLen )
     {
         ERROR_PRINT( "\nCB: !!! ERROR ZwQueryInformationProcess ProcessImageFileName failed. status=%S\n", GetStatusString( status ) );
         goto Cleanup;
     }
 
-    PUNICODE_STRING pUniName = (PUNICODE_STRING) Buffer;
-	if( pUniName->Length && pUniName->Buffer )
+    PUNICODE_STRING pUniName = (PUNICODE_STRING) BufferUniName;
+	if( pUniName->Length == 0 || pUniName->Buffer == NULL )
+    {
+        DEBUG_PRINT( "\nCB: !!! pUniName->Length %d && pUniName->Buffer\n", pUniName->Length );
+    }
+    else
         strProcessName = pUniName->Buffer ;
 
-    ERROR_PRINT( "CB: DEBUG PreCreate ENTER with %S Process=%S\n", strFileName, strProcessName );
+    DEBUG_PRINT( "CB: DEBUG PreCreate ENTER with %S Process=%S\n", strFileName, strProcessName );
 
-    //MjCreatePrint( nameInfo, Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, Data->Iopb->Parameters.Create.ShareAccess, FltObjects->FileObject->Flags );
+    MjCreatePrint( nameInfo, Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, Data->Iopb->Parameters.Create.ShareAccess, FltObjects->FileObject->Flags );
     //DbgBreakPoint();
 
+    ExAcquireFastMutex( &g_CeBackupData.Guard );
+    UserProcess = g_CeBackupData.UserProcess;
+    UserProcessKernel = g_CeBackupData.UserProcessKernel;
+    ExReleaseFastMutex( &g_CeBackupData.Guard );
+
     //Skip admin user tool operations
-    if( g_CeBackupData.UserProcess && IoThreadToProcess( Data->Thread ) == g_CeBackupData.UserProcess )
+    if( UserProcess && IoThreadToProcess( Data->Thread ) == UserProcess )
     {
-        DEBUG_PRINT( "CB: INFO: Skipping CEUSER OP\n" );
+        //TODO: Clarify
+        DEBUG_PRINT( "CB: INFO: Skipping CEUSER app EPROCESS=%p Ps=%p PsId=%p write to %S\n", UserProcess, PsGetCurrentProcess(), PsGetCurrentProcessId(), strFileName );
         goto Cleanup;
     }
 
-    if( g_CeBackupData.UserProcessKernel == NULL )
+    if( UserProcessKernel == NULL )
     {
-        ERROR_PRINT( "CB: WARNING: CEUSER application is not connected to filter\n" );
+        INFO_PRINT( "CB: INFO: CEUSER application is not connected to filter\n" );
         goto Cleanup;
     }
-
-    if( ! ObIsKernelHandle( g_CeBackupData.UserProcessKernel ) )
-    {
-        ERROR_PRINT( "\nCB: !!! ERROR CEUSER application handle is not kernel one\n\n" );
-        goto Cleanup;
-    }
-
-//    if( ! FltObjects->FileObject->WriteAccess ) // Not set in PreCreate yet!
-//        goto Cleanup;
 
     OBJECT_ATTRIBUTES oa = {0};
     InitializeObjectAttributes( &oa, &nameInfo->Name, 0, NULL, NULL );
@@ -636,18 +652,29 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
                             FILE_ATTRIBUTE_NORMAL,
                             FILE_SHARE_READ,
                             FILE_OPEN, // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
-                            FILE_SYNCHRONOUS_IO_NONALERT, //Waits in the system to synchronize I/O queuing and completion are not subject to alerts //TODO: FILE_SYNCHRONOUS_IO_ALERT,
+                            FILE_SYNCHRONOUS_IO_NONALERT, //Waits in the system to synchronize I/O queuing and completion are not subject to alerts //FILE_SYNCHRONOUS_IO_ALERT ?
                             NULL,
                             0L,
                             0 );
 
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR FltCreateFile failed status=%S\n", GetStatusString( status ) );
+        if( status == STATUS_SHARING_VIOLATION || status == STATUS_OBJECT_NAME_NOT_FOUND )
+        {
+            DEBUG_PRINT( "CB: DEBUG FltCreateFile %wZ failed status=%S\n", nameInfo->Name, GetStatusString( status ) );
+        }
+        else
+        {
+            ERROR_PRINT( "\nCB: !!! ERROR FltCreateFile %wZ failed status=%S\n", nameInfo->Name, GetStatusString( status ) );
+        }
         goto Cleanup;
     }
 
-    ASSERT_BOOL_PRINT( ioStatusCreate.Information == FILE_OPENED );
+    if( ! ioStatusCreate.Information == FILE_OPENED )
+    {
+        ERROR_PRINT( "\nCB: ioStatusCreate.Information != FILE_OPENED\n" );
+        goto Cleanup;
+    }
 
     if( hFile == INVALID_HANDLE_VALUE )
     {
@@ -658,6 +685,13 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     if( hFile == NULL )
     {
         ERROR_PRINT( "\nCB: hFile == NULL\n" );
+        goto Cleanup;
+    }
+
+    status = ObReferenceObjectByHandle( hFile, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pSrcFileObject, NULL );
+    if( ! NT_SUCCESS( status ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", hFile, GetStatusString( status ) );
         goto Cleanup;
     }
 
@@ -672,25 +706,53 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
-    // TODO ??? Check FileClose in ceuser.exe
-
-    status = ObReferenceObjectByHandle( hFile, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pFileObject, NULL );
-    if( ! NT_SUCCESS( status ) )
+    if( pSrcFileObject == NULL )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", hFile, GetStatusString( status ) );
+        ERROR_PRINT( "\nCB: pSrcFileObject == NULL\n" );
         goto Cleanup;
     }
 
-    PDEVICE_OBJECT pDeviceObject = IoGetRelatedDeviceObject( pFileObject );
-    ASSERT_BOOL_PRINT( pDeviceObject != NULL );
-    //DEBUG_PRINT( "CB: DEBUG: File: file.Flag=%S device.Flags=%S file.CompletionContext=%p device.AlignmentRequirement=%d\n", GetFileFlagString( pFileObject->Flags ), GetDeviceFlagString( pDeviceObject->Flags ), pFileObject->CompletionContext, pDeviceObject->AlignmentRequirement );
+    PDEVICE_OBJECT pSrcDeviceObject = IoGetRelatedDeviceObject( pSrcFileObject );
+    if( pSrcDeviceObject == NULL )
+    {
+        ERROR_PRINT( "\nCB: pDeviceObject == NULL\n" );
+        goto Cleanup;
+    }
 
-    ASSERT_BOOL_PRINT( FlagOn( pFileObject->Flags, FO_SYNCHRONOUS_IO ) );
+    DEBUG_PRINT( "CB: DEBUG: File: file.Flag=%S device.Flags=%S file.CompletionContext=%p device.AlignmentRequirement=%d\n", GetFileFlagString( pSrcFileObject->Flags ), GetDeviceFlagString( pSrcDeviceObject->Flags ), pSrcFileObject->CompletionContext, pSrcDeviceObject->AlignmentRequirement );
+
+    if( ! FlagOn( pSrcFileObject->Flags, FO_SYNCHRONOUS_IO ) )
+    {
+        ERROR_PRINT( "\nCB: pSrcFileObject->Flags != FO_SYNCHRONOUS_IO\n" );
+        goto Cleanup;
+    }
 
     // Duplicate handle
-    HANDLE TargetProcessHandle = g_CeBackupData.UserProcessKernel;
-    SourceProcessHandle = NtCurrentProcess();
     HANDLE SourceHandle = hFile;
+    TargetProcessHandle = UserProcessKernel;
+    status = GetCurrentProcessKernelHandler( &SourceProcessHandle );
+    if( ! NT_SUCCESS(status) )
+    {
+        status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        goto Cleanup;
+    }
+
+    if( ObIsKernelHandle( SourceHandle ) )
+    {
+        DEBUG_PRINT( "CB: DEBUG SourceHandle handle is not user one: %p SourceProcessHandle=%p Process=%S\n\n", SourceHandle, SourceProcessHandle, strProcessName );
+    }
+
+    if( ! ObIsKernelHandle( SourceProcessHandle ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR SourceProcessHandle handle is not kernel one\n\n" );
+        goto Cleanup;
+    }
+
+    if( ! ObIsKernelHandle( TargetProcessHandle ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR TargetProcessHandle handle is not kernel one\n\n" );
+        goto Cleanup;
+    }
 
     status = ZwDuplicateObject( SourceProcessHandle, SourceHandle, TargetProcessHandle, &TargetHandle, 0, 0, DUPLICATE_SAME_ACCESS | DUPLICATE_SAME_ATTRIBUTES );
     if( ! NT_SUCCESS( status ) )
@@ -699,21 +761,35 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
-    ASSERT_BOOL_PRINT( ! ObIsKernelHandle( TargetHandle ) );
+    if( ObIsKernelHandle( TargetHandle ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR TargetHandle handle is not user one: %p\n\n", TargetHandle );
+        goto Cleanup;
+    }
 
-    ERROR_PRINT( "CB: DEBUG ZwDuplicateObject SourceProcessHandle=%p TargetProcessHandle=%p SourceHandle=%p TargetHandle=%p\n", SourceProcessHandle, TargetProcessHandle, SourceHandle, TargetHandle );
+    DEBUG_PRINT( "CB: DEBUG ZwDuplicateObject SourceProcessHandle=%p TargetProcessHandle=%p SourceHandle=%p TargetHandle=%p\n", SourceProcessHandle, TargetProcessHandle, SourceHandle, TargetHandle );
+
+    KAPC_STATE kApcSt;
+    KeStackAttachProcess( (PKPROCESS)UserProcess, &kApcSt );
+    status = ObReferenceObjectByHandle( TargetHandle, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pDstFileObject, NULL ); // UserMode = STATUS_ACCESS_DENIED
+    KeUnstackDetachProcess( &kApcSt );
+    if( ! NT_SUCCESS( status ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", TargetHandle, GetStatusString( status ) );
+        goto Cleanup;
+    }
 
     BOOLEAN OkToOpen = TRUE;
     status = SendHandleToUser( TargetHandle, FltObjects->Volume, &nameInfo->ParentDir, &nameInfo->FinalComponent, basicInfo.CreationTime, basicInfo.LastAccessTime, basicInfo.LastWriteTime, basicInfo.ChangeTime, basicInfo.FileAttributes, &OkToOpen );
     if( ! NT_SUCCESS( status ))
     {
-        ERROR_PRINT( "\nCB: !!! ERROR SendHandleToUser failed status=%S\n", GetStatusString( status ) );
+        ERROR_PRINT( "\nCB: !!! ERROR SendHandleToUser failed status=%S\n\n", GetStatusString( status ) );
         goto Cleanup;
     }
 
     if( ! OkToOpen )
     {
-        DEBUG_PRINT( "CB: INFO: Access denied by admin app %wZ", nameInfo->Name );
+        INFO_PRINT( "CB: INFO: Access denied by admin app %wZ", nameInfo->Name );
 
         FltCancelFileOpen( FltObjects->Instance, FltObjects->FileObject );
 
@@ -724,17 +800,21 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     }
 
 Cleanup:
-//    if( TargetHandle && g_CeBackupData.UserProcessKernel )
-//        CloseHandleInProcess( TargetHandle, g_CeBackupData.UserProcessKernel );
+    if( pDstFileObject )
+        ObDereferenceObject( pDstFileObject );
 
-    if( pFileObject )
-        ObDereferenceObject( pFileObject );
+    // Considering possible CloseHandle in ceuser.exe
+    if( TargetHandle && UserProcess )
+        CloseHandleInProcess( TargetHandle, UserProcess );
 
-    if( SourceProcessHandle && SourceProcessHandle != NtCurrentProcess() )
-        ZwClose( SourceProcessHandle );
+    if( pSrcFileObject )
+        ObDereferenceObject( pSrcFileObject );
 
     if( hFile )
         FltClose( hFile ) ;
+
+    if( SourceProcessHandle && SourceProcessHandle != NtCurrentProcess() )
+        ZwClose( SourceProcessHandle );
 
     if( pInstanceContext )
         FltReleaseContext( pInstanceContext );
@@ -742,7 +822,10 @@ Cleanup:
     if( nameInfo )
         FltReleaseFileNameInformation( nameInfo );
 
-    ERROR_PRINT( "CB: DEBUG PreCreate EXIT %S Process=%S\n", strFileName, strProcessName );
+    size_t iLen = 0;
+    RtlStringCchLengthW( strProcessName, MAX_PATH_SIZE, &iLen );
+    if( iLen ) // FltGetFileNameInformation not failed
+        DEBUG_PRINT( "CB: DEBUG PreCreate EXIT %S Process=%S\n", strFileName, strProcessName );
 
     return filterStatus;
 }
@@ -771,14 +854,14 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
         return status;
     }
 
+    ExAcquireFastMutex( &g_CeBackupData.Guard );
     g_CeBackupData.UserProcessKernel = hProcess;
     g_CeBackupData.UserProcess = PsGetCurrentProcess();
     g_CeBackupData.UserProcessId = PsGetCurrentProcessId();
     g_CeBackupData.ClientPort = ClientPort;
+    ExReleaseFastMutex( &g_CeBackupData.Guard );
 
-    DEBUG_PRINT( "CB: DEBUG BackupPortConnect: port=0x%p PsGetCurrentProcess()=%p ZwOpenProcess=%p\n", ClientPort, PsGetCurrentProcess(), hProcess );
-
-    //DbgBreakPoint();
+    INFO_PRINT( "CB: INFO BackupPortConnect: port=0x%p PsGetCurrentProcess()=%p ZwOpenProcess=%p\n", ClientPort, PsGetCurrentProcess(), hProcess );
 
     return STATUS_SUCCESS;
 }
@@ -789,7 +872,7 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
 
     PAGED_CODE();
 
-    DEBUG_PRINT( "CB: DEBUG BackupPortDisconnect: port=0x%p\n", g_CeBackupData.ClientPort );
+    INFO_PRINT( "CB: INFO BackupPortDisconnect: port=0x%p\n", g_CeBackupData.ClientPort );
 
     //  Close our handle to the connection: note, since we limited max connections to 1, another connect will not be allowed until we return from the disconnect routine.
     FltCloseClientPort( g_CeBackupData.Filter, &g_CeBackupData.ClientPort );
@@ -832,7 +915,7 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCU
 
     if( uniDisk.Length + ParentDir->Length + FileName->Length + 1 > MAX_PATH_SIZE )
     {
-        ERROR_PRINT( "\nCB: !!! Result Path is too big\n" );
+        ERROR_PRINT( "\nCB: !!! ERROR Result Path is too big\n" );
         goto Cleanup;
     }
 

@@ -3,8 +3,6 @@
 #include "cecommon.h"
 #include "util.h"
 
-#define PROCESS_QUERY_INFORMATION (0x0400)
-
 #define CHECK_STATUS(s) \
 if( ! NT_SUCCESS( (s) ) ) \
 { \
@@ -22,7 +20,7 @@ VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAcce
     DECLARE_UNICODE_STRING_SIZE( SaBuffer, MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( FlgBuffer, MAX_PATH_SIZE );
 
-    CHECK_STATUS( RtlUnicodeStringPrintf( &FinalBuffer, L"!CB PreCreate Name=%wZ", &NameInfo->FinalComponent ) );
+    CHECK_STATUS( RtlUnicodeStringPrintf( &FinalBuffer, L"CB: PreCreate Name=%wZ", &NameInfo->FinalComponent ) );
     CHECK_STATUS( RtlUnicodeStringPrintf( &DaBuffer, L" DesiredAccess=0x%X(", DesiredAccess ) );
     CHECK_STATUS( RtlUnicodeStringPrintf( &SaBuffer, L" ShareAccess=0x%X(", ShareAccess ) );
     CHECK_STATUS( RtlUnicodeStringPrintf( &FlgBuffer, L" Flags=0x%X(", Flags ) );
@@ -93,7 +91,7 @@ VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAcce
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &SaBuffer ) );
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &FlgBuffer ) );
 
-    DbgPrint( "%wZ", FinalBuffer );
+    DEBUG_PRINT( "%wZ", FinalBuffer );
 }
 
 static WCHAR g_StatusString[MAX_PATH_SIZE];
@@ -112,6 +110,10 @@ const WCHAR* GetStatusString( NTSTATUS Status )
         RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_INVALID_HANDLE" );
     else if( Status == STATUS_FLT_INVALID_NAME_REQUEST )
         RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_FLT_INVALID_NAME_REQUEST" );
+    else if( Status == STATUS_SHARING_VIOLATION )
+        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_SHARING_VIOLATION" );
+    else if( Status == STATUS_OBJECT_NAME_NOT_FOUND )
+        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_OBJECT_NAME_NOT_FOUND" );
     else
         RtlStringCbPrintfW( g_StatusString, sizeof(g_StatusString), L"%X", Status );
 
@@ -254,7 +256,7 @@ NTSTATUS GetCurrentProcessKernelHandler( HANDLE* phProcess )
 
     status = UserHandleToKernelHandle( hProcess, phProcess );
 
-    // ??? ZwClose( hProcess ) ;
+    ZwClose( hProcess ) ;
 
     return status;
 }
@@ -268,7 +270,7 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
     OBJECT_ATTRIBUTES objAttribs;
     clientId.UniqueThread = PsGetCurrentThreadId();
     clientId.UniqueProcess = PsGetCurrentProcessId();
-    InitializeObjectAttributes( &objAttribs, NULL, OBJ_KERNEL_HANDLE | PROCESS_QUERY_INFORMATION, NULL, NULL );
+    InitializeObjectAttributes( &objAttribs, NULL, OBJ_KERNEL_HANDLE, NULL, NULL );
 
     NTSTATUS status = ZwOpenProcess( phProcess, PROCESS_DUP_HANDLE, &objAttribs, &clientId );
     if( ! NT_SUCCESS(status) )
@@ -283,7 +285,7 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
  NTSTATUS UserHandleToKernelHandle( HANDLE hSrc, HANDLE* phDest )
  {
     PVOID pObject = NULL;
-    NTSTATUS status = ObReferenceObjectByHandle( hSrc, 0x8, NULL, KernelMode, &pObject, NULL);
+    NTSTATUS status = ObReferenceObjectByHandle( hSrc, 0, NULL, KernelMode, &pObject, NULL);
     if( ! NT_SUCCESS(status) )
     {
         ERROR_PRINT( "\nCB: !!! UserHandleToKernelHandle: ObReferenceObjectByHandle failed. status=%S\n", GetStatusString( status ) );
@@ -309,12 +311,12 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
     return status;
 }
 
-NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS hProcess )
+NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS peProcess )
 {
     KAPC_STATE kApcSt;
-    KeStackAttachProcess( (PKPROCESS)hProcess, &kApcSt );
+    KeStackAttachProcess( (PKPROCESS)peProcess, &kApcSt );
 
-    NTSTATUS status = ZwClose( hFile );
+    NTSTATUS status = ObCloseHandle( hFile, UserMode );
 
     KeUnstackDetachProcess( &kApcSt );
 
@@ -368,25 +370,4 @@ NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS hProcess )
         // caller did not specify a ByteOffset parameter.
         return STATUS_INVALID_PARAMETER;
     }
-*/
-
-
- /*  It's not necessary to provide source Process and Handle to ZwDuplicateObject as a kernel
-    status = GetCurrentProcessKernelHandler( &SourceProcessHandle );
-    if( ! NT_SUCCESS(status) )
-    {
-        status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto Cleanup;
-    }
-
-    status = UserHandleToKernelHandle( hFile, &SourceHandle );
-    if( ! NT_SUCCESS(status) )
-    {
-        status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto Cleanup;
-    }
-
-    ASSERT_BOOL_PRINT( ObIsKernelHandle( SourceProcessHandle ) );
-    ASSERT_BOOL_PRINT( ObIsKernelHandle( TargetProcessHandle ) );
-    ASSERT_BOOL_PRINT( ObIsKernelHandle( SourceHandle ) );
 */

@@ -18,6 +18,7 @@ public:
     bool Run( const tstring& IniPath );
 
 private:
+    bool IsRunning();
     bool ParseIni( const tstring& IniPath );
     bool IsIncluded( const tstring& Path );
     bool DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD SrcAttribute, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime );
@@ -25,8 +26,10 @@ private:
     tstring MapToDestination( const tstring& Path );
     bool GetLastIndex( const tstring& MappedPath, int& Index );
     tstring RemoveEndingSlash( const tstring& Dir );
+    tstring ToLower( const tstring& str );
     bool DoesDirectoryExists( const tstring& Directory );
     bool CreateDirectories( const tstring& Directory );
+    tstring GetLastErrorString();
 
     static DWORD _BackupWorker( _In_ PBACKUP_THREAD_CONTEXT pContext );
     void BackupWorker( HANDLE Completion, HANDLE Port );
@@ -36,4 +39,5 @@ private:
     std::vector<tstring> _arrExcludedFile;
     std::vector<tstring> _arrIncludedDirectory;
     std::vector<tstring> _arrExcludedDirectory;
+    CRITICAL_SECTION _guardDestFile;
 };

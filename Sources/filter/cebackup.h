@@ -20,9 +20,8 @@ typedef struct _BACKUP_DATA
     HANDLE UserProcessKernel;
     PEPROCESS UserProcessId;
     PFLT_PORT ClientPort;
+    FAST_MUTEX Guard;
 } BACKUP_DATA, *PBACKUP_DATA;
-
-BACKUP_DATA g_CeBackupData;
 
 /*************************************************************************
     Prototypes
@@ -42,3 +41,10 @@ VOID CbContextCleanup ( _In_ PFLT_CONTEXT Context, _In_ FLT_CONTEXT_TYPE Context
 NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie );
 VOID BackupPortDisconnect ( _In_opt_ PVOID ConnectionCookie );
 NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCUNICODE_STRING ParentDir, _In_ PCUNICODE_STRING FileName, _In_ LARGE_INTEGER CreationTime, _In_ LARGE_INTEGER LastAccessTime, _In_ LARGE_INTEGER LastWriteTime, _In_ LARGE_INTEGER ChangeTime, _In_ ULONG FileAttributes, _Out_ PBOOLEAN OkToOpen );
+
+//Undocumented DDK
+NTSTATUS NTAPI ZwQueryInformationProcess( IN HANDLE						hProcessHandle,
+										  IN PROCESSINFOCLASS			nProcessInformationClass,
+										  OUT PVOID						pProcessInformation,
+										  IN ULONG						ulProcessInformationLength,
+										  OUT PULONG					pulReturnLength OPTIONAL );

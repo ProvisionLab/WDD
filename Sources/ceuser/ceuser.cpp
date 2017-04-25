@@ -40,5 +40,6 @@ int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
     if( ! client.Run( strIniPath ) )
         return 1;
 
+    _tprintf( _T("Exiting ...") );
     return 0;
 }
