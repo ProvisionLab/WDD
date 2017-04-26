@@ -15,8 +15,8 @@ https://github.com/benhoyt/inih
 extern "C" {
 #endif
 
-#include <stdio.h>
 #include <tchar.h>
+#include <stdio.h>
 
 /* Nonzero if ini_handler callback should accept lineno parameter. */
 #ifndef INI_HANDLER_LINENO

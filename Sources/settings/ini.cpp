@@ -11,15 +11,11 @@ https://github.com/benhoyt/inih
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <stdio.h>
-#include <ctype.h>
-#include <string.h>
-#include <tchar.h>
-
+#include "usercommon.h"
 #include "ini.h"
 
 #if !INI_USE_STACK
-#include <stdlib.h>
+#includez <stdlib.h>
 #endif
 
 #define MAX_SECTION 50

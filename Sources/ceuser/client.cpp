@@ -1,121 +1,20 @@
-/*
-- timestamp as FA
--filter files from driver, store in dest
-*/
-
-#include "common.h"
+#include "usercommon.h"
 #include "client.h"
-#include "cecommon.h"
+#include "drvcommon.h"
 #include "ceuser.h"
-#include "INIReader.h"
+#include "Settings.h"
+#include "Utils.h"
 
 //  Default and Maximum number of threads.
 #define BACKUP_REQUEST_COUNT            5
 #define BACKUP_DEFAULT_THREAD_COUNT     2
 #define BACKUP_MAX_THREAD_COUNT         64
 
-#define ERROR_PRINT _tprintf
-#define INFO_PRINT  _tprintf
-#define DEBUG_PRINT 
-
-class CPathDetails
-{
-public:
-    CPathDetails();
-    bool Parse( bool aMapped, const tstring& Path );
-
-    tstring Directory;
-    tstring Name;
-    tstring Extension;
-    bool Mapped;
-    int Index;
-};
-
-CPathDetails::CPathDetails()
-    : Index(0)
-    , Mapped(false)
-{
-}
-
-bool CPathDetails::Parse( bool aMapped, const tstring& Path )
-{
-    Mapped = aMapped;
-    Directory = _T("");
-
-    size_t pos = Path.rfind( _T('\\') ) ;
-    if( pos == -1 )
-        return false;
-
-    Directory = Path.substr( 0, pos );
-    Name = Path.substr( pos + 1 );
-    pos = Name.rfind( _T('.') ) ;
-    if( pos != -1 )
-        Extension = Name.substr( pos + 1 );
-
-    return true;
-}
-
-/*File indexes
-    a.txt     -> a.txt.X
-    a.txt.1   -> a.txt.1.X
-    Directories
-    1\1.txt   -> 1\X\1.txt
-    1\1\1.txt -> 1\1\X\1.txt
-*/
-bool CBackupClient::GetLastIndex( const tstring& MappedPath, int& Index )
-{
-    Index = 0;
-
-    tstring strFinalPath = _strDestination + _T("\\") + MappedPath;
-
-    CPathDetails pd;
-    if( ! pd.Parse( true, strFinalPath ) )
-    {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), MappedPath.c_str() );
-        return false;
-    }
-
-    if( DoesDirectoryExists( pd.Directory ) )
-    {
-        WIN32_FIND_DATA ffd;
-        HANDLE hFind = INVALID_HANDLE_VALUE;
-        hFind = ::FindFirstFile( (pd.Directory + _T("\\*")).c_str(), &ffd );
-        if( hFind == INVALID_HANDLE_VALUE )
-        {
-            ERROR_PRINT( _T("ERROR: FindFirstFile failed %s\n"), pd.Directory.c_str() );
-            return false;
-        }
-
-        do
-        {
-            if( ! (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
-            {
-                 if( _tcsstr( ffd.cFileName, pd.Name.c_str() ) != NULL )
-                 {
-                     TCHAR* point = _tcsrchr(  ffd.cFileName, _T('.') );
-                     if( point )
-                     {
-                         tstring strIndex = point + 1;
-                         if( strIndex.size() )
-                         {
-                             int iIndex = _tstoi( strIndex.c_str() );
-                             if( iIndex > Index )
-                                 Index = iIndex;
-                         }
-                     }
-                 }
-            }
-        } while( ::FindNextFile( hFind, &ffd ) );
-
-        ::FindClose( hFind );
-    }
-
-    return true;
-}
 
 bool CBackupClient::IsIncluded( const tstring& Path )
 {
-    CPathDetails pd;
+	Utils::CPathDetails pd;
+
     if( ! pd.Parse( false, Path ) )
     {
         ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), Path.c_str() );
@@ -128,21 +27,21 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     // 3. If If file is explicitly set in [IncludeFile] - backup it
     // 4. If If file's directory is explicitly set in [IncludeFile] - backup it
 
-    std::vector<tstring>::iterator it = std::find( _arrExcludedFile.begin(), _arrExcludedFile.end(), Path ) ;
-    if( it != _arrExcludedFile.end() )
+    std::vector<tstring>::iterator it = std::find( _Settings.ExcludedFiles.begin(), _Settings.ExcludedFiles.end(), Path ) ;
+    if( it != _Settings.ExcludedFiles.end() )
         return false;
 
-    for( std::vector<tstring>::iterator it = _arrExcludedDirectory.begin(); it != _arrExcludedDirectory.end(); it++ )
+    for( it = _Settings.ExcludedDirectories.begin(); it != _Settings.ExcludedDirectories.end(); it++ )
     {
         if( Path.substr( 0, (*it).size() ) == (*it)  )
             return false;
     }
 
-    it = std::find( _arrIncludedFile.begin(), _arrIncludedFile.end(), Path ) ;
-    if( it != _arrIncludedFile.end() )
+    it = std::find( _Settings.IncludedFiles.begin(), _Settings.IncludedFiles.end(), Path ) ;
+    if( it != _Settings.IncludedFiles.end() )
         return true;
 
-    for( std::vector<tstring>::iterator it = _arrIncludedDirectory.begin(); it != _arrIncludedDirectory.end(); it++ )
+    for( it = _Settings.IncludedDirectories.begin(); it != _Settings.IncludedDirectories.end(); it++ )
     {
         if( Path.substr( 0, (*it).size() ) == (*it)  )
             return true;
@@ -151,45 +50,26 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     return false;
 }
 
-tstring CBackupClient::MapToDestination( const tstring& Path )
-{
-    tstring strMapped = Path;
-
-    size_t pos = strMapped.find( _T(':') );
-    if( pos == -1 )
-    {
-        ERROR_PRINT( _T("ERROR: MapToDestination failed: Disk not found in the path %s\n"), Path.c_str() );
-        return false;
-    }
-
-    strMapped = strMapped.substr( 0, pos ) + strMapped.substr( pos + 1 );
-
-    return strMapped;
-}
-
 bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD SrcAttribute, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
 {
     bool ret = false;
-    tstring strMappedPath = MapToDestination( SrcPath );
+    tstring strMappedPath = Utils::MapToDestination( SrcPath );
 
     int iIndex = 0;
-    if( ! GetLastIndex( strMappedPath, iIndex ) )
+    if( ! Utils::GetLastIndex( _Settings.Destination, strMappedPath, iIndex ) )
         return false;
 
     iIndex ++;
     std::wstringstream oss;
-    oss << _strDestination << _T("\\") << strMappedPath << _T(".") << iIndex;
+    oss << _Settings.Destination << _T("\\") << strMappedPath << _T(".") << iIndex;
     tstring strDestPath = oss.str();
 
-    CPathDetails pd;
+    Utils::CPathDetails pd;
     if( ! pd.Parse( true, strDestPath ) )
     {
         ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), strDestPath.c_str() );
         return false;
     }
-
-    if( ! CreateDirectories( pd.Directory ) )
-        return false;
 
     EnterCriticalSection( &_guardDestFile );
 
@@ -208,7 +88,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         if( ! bRead )
         {
             //::CreateFile( L"C:\\XXXXX.txt", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-            ERROR_PRINT( _T("ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, GetLastErrorString().c_str() );
+            ERROR_PRINT( _T("ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
             ret = false;
             goto Cleanup;
         }
@@ -217,6 +97,13 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         {
             if( hDestFile == NULL )
             {
+                //Lets create directory only if file is not empty
+                if( ! Utils::CreateDirectories( pd.Directory ) )
+                {
+                    ret = false;
+                    goto Cleanup;
+                }
+
                 hDestFile = ::CreateFile( strDestPath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL );
                 if( hDestFile == INVALID_HANDLE_VALUE )
                 {
@@ -230,21 +117,20 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
             BOOL bWrite = ::WriteFile( hDestFile, Buffer, dwRead, &dwWritten, NULL );
             if( ! bWrite )
             {
-                ERROR_PRINT( _T("ERROR: WriteFile %s failed, error=0x%X\n"), strDestPath.c_str(), ::GetLastError() );
+                ERROR_PRINT( _T("ERROR: WriteFile %s failed, error=0x%X\n"), SrcPath.c_str(), ::GetLastError() );
                 ret = false;
                 goto Cleanup;
             }
         }
-        else
-        {
-            DEBUG_PRINT( _T("DEBUG: File is empty %s. Ignoring\n"), strDestPath.c_str() );
-            bRead = FALSE;
-        }
+		else
+		{
+			bRead = FALSE;
+		}
     }
 
     if( hDestFile && ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("ERROR: SetFileTime( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, GetLastErrorString().c_str() );
+        ERROR_PRINT( _T("ERROR: SetFileTime( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
         ret = false;
         goto Cleanup;
     }
@@ -252,7 +138,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
     //Copy attributes
     if( hDestFile && ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
     {
-        ERROR_PRINT( _T("ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, GetLastErrorString().c_str() );
+        ERROR_PRINT( _T("ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
         ret = false;
         goto Cleanup;
     }
@@ -265,6 +151,10 @@ Cleanup:
     {
         if( ! ::CloseHandle( hDestFile ) )
             ERROR_PRINT( _T("ERROR: CloseHandle hDestFile failed, hDestFile=%p"), hDestFile );
+    }
+    else if( hDestFile == NULL )
+    {
+        INFO_PRINT( _T("DEBUG: Skipping empty file %s\n"), SrcPath.c_str() );
     }
 
     LeaveCriticalSection( &_guardDestFile );
@@ -280,8 +170,8 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAtt
         return true;
     }
 
-    tstring strLower = ToLower( Path );
-    if( strLower.size() >= _strDestination.size() && strLower.substr( 0, _strDestination.size() ) == _strDestination )
+    tstring strLower = Utils::ToLower( Path );
+    if( strLower.substr( 0, _Settings.Destination.size() ) == _Settings.Destination )
     {
         DEBUG_PRINT( _T("DEBUG: Skipping write to Destination=%s"), Path.c_str() );
         return true;
@@ -390,7 +280,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
 
 bool CBackupClient::Run( const tstring& IniPath )
 {
-    DWORD requestCount = BACKUP_REQUEST_COUNT;
+	DWORD requestCount = BACKUP_REQUEST_COUNT;
     DWORD threadCount = BACKUP_DEFAULT_THREAD_COUNT;
     HANDLE threads[BACKUP_MAX_THREAD_COUNT];
     BACKUP_THREAD_CONTEXT context;
@@ -402,20 +292,10 @@ bool CBackupClient::Run( const tstring& IniPath )
         return false;
     }
 
-    InitializeCriticalSection( &_guardDestFile );
-
-    if( ! ParseIni( IniPath ) )
+	if( ! _Settings.Init( IniPath ) )
         return false;
 
-/*TMP
-    tstring name = _T("C:\\Max\\Test\\file1.txt");
-    HANDLE hFile = ::CreateFile( name.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-    DWORD dwAttributes = ::GetFileAttributesEx( name.c_str() );
-    FILETIME CreationTime, LastAccessTime, LastWriteTime, ChangeTime;
-    ::GetFileTime( hFile, &CreationTime, &LastAccessTime, &LastWriteTime );
-    BackupFile( hFile, name, dwAttributes, CreationTime, LastAccessTime, LastWriteTime );
-    ::CloseHandle( hFile );
-*/
+    InitializeCriticalSection( &_guardDestFile );
 
     //  Open a communication channel to the filter
     INFO_PRINT( _T("Connecting to the filter ...\n") );
@@ -489,184 +369,6 @@ Cleanup:
     return true;
 }
 
-bool CBackupClient::ParseIni( const tstring& IniPath )
-{
-    INIReader reader( IniPath );
-
-    if( reader.ParseError() < 0 )
-    {
-        DEBUG_PRINT( _T("Can't load '%s'\n"), IniPath.c_str() );
-        return false;
-    }
-
-    _strDestination = ToLower( reader.Get( _T("Destination"), _T("Path"), _T("")) );
-
-    if( _strDestination.length() == 0 )
-    {
-        DEBUG_PRINT( _T("[Destination]Path not found in '%s'\n"), IniPath.c_str() );
-        return false;
-    }
-
-    _strDestination = RemoveEndingSlash( _strDestination );
-
-    if( ! CreateDirectories( _strDestination.c_str() ) )
-        return false;
-
-    INFO_PRINT( _T("[Settings] Backup directory: %s\n"), _strDestination.c_str() );
-
-    int iCount = reader.GetInteger( _T("IncludeFile"), _T("Count"), 0 );
-    for( int i=1; i<=iCount; i++ )
-    {
-        std::wstringstream oss;
-        oss << _T("File" ) << i;
-        tstring strName;
-        tstring strFile = ToLower( reader.Get( _T("IncludeFile"), oss.str(), _T("") ) );
-
-        if( strFile.length() == 0 )
-        {
-            DEBUG_PRINT( _T("[IncludeFile] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
-            return false;
-        }
-
-        _arrIncludedFile.push_back( strFile );
-    }
-
-    iCount = reader.GetInteger( _T("IncludeDirectory"), _T("Count"), 0 );
-    for( int i=1; i<=iCount; i++ )
-    {
-        std::wstringstream oss;
-        oss << _T("Directory" ) << i;
-        tstring strName;
-        tstring strDirectory = ToLower( reader.Get( _T("IncludeDirectory"), oss.str(), _T("") ) );
-
-        if( strDirectory.length() == 0 )
-        {
-            DEBUG_PRINT( _T("[IncludeDirectory] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
-            return false;
-        }
-
-        _arrIncludedDirectory.push_back( RemoveEndingSlash( strDirectory ) );
-    }
-
-    iCount = reader.GetInteger( _T("ExcludeFile"), _T("Count"), 0 );
-    for( int i=1; i<=iCount; i++ )
-    {
-        std::wstringstream oss;
-        oss << _T("File" ) << i;
-        tstring strName;
-        tstring strFile = ToLower( reader.Get( _T("ExcludeFile"), oss.str(), _T("") ) );
-
-        if( strFile.length() == 0 )
-        {
-            DEBUG_PRINT( _T("[ExcludeFile] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
-            return false;
-        }
-
-        _arrExcludedFile.push_back( strFile );
-    }
-
-    iCount = reader.GetInteger( _T("ExcludeDirectory"), _T("Count"), 0 );
-    for( int i=1; i<=iCount; i++ )
-    {
-        std::wstringstream oss;
-        oss << _T("Directory" ) << i;
-        tstring strName;
-        tstring strDirectory = ToLower( reader.Get( _T("ExcludeDirectory"), oss.str(), _T("") ) );
-
-        if( strDirectory.length() == 0 )
-        {
-            DEBUG_PRINT( _T("[ExcludeDirectory] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
-            return false;
-        }
-
-        _arrExcludedDirectory.push_back( RemoveEndingSlash( strDirectory ) );
-    }
-
-    return true;
-}
-
-tstring CBackupClient::RemoveEndingSlash( const tstring& Dir )
-{
-    tstring ret = Dir;
-    if( ret[ret.size()-1] == _T('\\') )
-        ret.substr( 0, ret.size()-1 );
-
-    return ret;
-}
-
-tstring CBackupClient::ToLower( const tstring& str )
-{
-    tstring data = str;
-    std::transform( data.begin(), data.end(), data.begin(), ::tolower ) ;
-
-    return data;
-}
-
-bool CBackupClient::DoesDirectoryExists( const tstring& Directory )
-{
-    return ::PathFileExists( Directory.c_str() ) != 0;
-}
-
-bool CBackupClient::CreateDirectories( const tstring& Directory )
-{
-    size_t pos = 0;
-    
-    bool bExist = false ;
-    while( ! bExist )
-    {
-        pos = Directory.find( _T('\\'), pos );
-
-        tstring strSubDirectory;
-        if( pos == -1 )
-        {
-            strSubDirectory = Directory;
-            bExist = true;
-        }
-        else
-            strSubDirectory = Directory.substr( 0, pos + 1 );
-
-        if( ! DoesDirectoryExists( strSubDirectory ) )
-        {
-            BOOL ret = ::CreateDirectory( strSubDirectory.c_str(), NULL ) ;
-            if( ! ret )
-            {
-                if( ::GetLastError() != ERROR_ALREADY_EXISTS )
-                {
-                    ERROR_PRINT( _T("ERROR: CreateDirectory %s failed, error=0x%X\n"), strSubDirectory.c_str(), ::GetLastError() );
-                    return false;
-                }
-            }
-        }
-
-        pos ++;
-    }
-
-    return true;
-}
-
-tstring CBackupClient::GetLastErrorString()
-{
-    tstring ret;
-    if( ::GetLastError() == ERROR_ACCESS_DENIED )
-        ret = _T(" ERROR_ACCESS_DENIED");
-    else if( ::GetLastError() == ERROR_INVALID_HANDLE )
-        ret = _T(" ERROR_INVALID_HANDLE");
-    else if( ::GetLastError() == ERROR_INVALID_PARAMETER )
-        ret = _T(" ERROR_INVALID_PARAMETER");
-    else if( ::GetLastError() == ERROR_INVALID_FUNCTION )
-        ret = _T(" ERROR_INVALID_FUNCTION");
-    else if( ::GetLastError() == ERROR_FILE_EXISTS )
-        ret = _T(" ERROR_FILE_EXISTS");
-    else
-    {
-        std::wstringstream oss;
-        oss << _T(" error=%d") << ::GetLastError();
-        ret = oss.str();
-    }
-
-    return ret;
-}
-
 bool CBackupClient::IsRunning()
 {
     bool ret = false;
@@ -677,3 +379,13 @@ bool CBackupClient::IsRunning()
 
     return ret;
 }
+
+/*TMP
+    tstring name = _T("C:\\Max\\Test\\file1.txt");
+    HANDLE hFile = ::CreateFile( name.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+    DWORD dwAttributes = ::GetFileAttributesEx( name.c_str() );
+    FILETIME CreationTime, LastAccessTime, LastWriteTime, ChangeTime;
+    ::GetFileTime( hFile, &CreationTime, &LastAccessTime, &LastWriteTime );
+    BackupFile( hFile, name, dwAttributes, CreationTime, LastAccessTime, LastWriteTime );
+    ::CloseHandle( hFile );
+*/

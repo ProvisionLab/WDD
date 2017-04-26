@@ -15,24 +15,21 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ceuser.cpp">
+    <ClCompile Include="cerestore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="client.cpp">
+    <ClCompile Include="restore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ceuser.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="client.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\inc\drvcommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\inc\usercommon.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="restore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\settings\Utils.h">

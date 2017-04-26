@@ -1,6 +1,6 @@
 #include <fltKernel.h>
 #include <ntstrsafe.h>
-#include "cecommon.h"
+#include "drvcommon.h"
 #include "util.h"
 
 #define CHECK_STATUS(s) \
@@ -114,6 +114,8 @@ const WCHAR* GetStatusString( NTSTATUS Status )
         RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_SHARING_VIOLATION" );
     else if( Status == STATUS_OBJECT_NAME_NOT_FOUND )
         RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_OBJECT_NAME_NOT_FOUND" );
+    else if( Status == STATUS_PORT_DISCONNECTED )
+        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_PORT_DISCONNECTED" );
     else
         RtlStringCbPrintfW( g_StatusString, sizeof(g_StatusString), L"%X", Status );
 
@@ -313,10 +315,40 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
 
 NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS peProcess )
 {
+	NTSTATUS status = STATUS_SUCCESS;
     KAPC_STATE kApcSt;
     KeStackAttachProcess( (PKPROCESS)peProcess, &kApcSt );
+	if( peProcess == PsGetCurrentProcess() )
+	{
+		// We may have referenced kernel object, but still fail here on KiPageFault SYSTEM_SERVICE_EXCEPTION
+		status = ObCloseHandle( hFile, UserMode ); // PASSIVE_LEVEL
+	}
+	else
+	{
+		//Process has exit already?
+		ERROR_PRINT( "\nCB: !!! ERROR CloseHandleInProcess: KeStackAttachProcess failed to switch to process: %p\n\n", peProcess );
+		DbgBreakPoint();
+	}
 
-    NTSTATUS status = ObCloseHandle( hFile, UserMode );
+    KeUnstackDetachProcess( &kApcSt );
+
+    return status;
+}
+
+NTSTATUS ReferenceHandleInProcess( HANDLE hFile, PEPROCESS peProcess, PFILE_OBJECT* ppDstFileObject )
+{
+	NTSTATUS status = STATUS_SUCCESS;
+    KAPC_STATE kApcSt;
+    KeStackAttachProcess( (PKPROCESS)peProcess, &kApcSt );
+	if( peProcess == PsGetCurrentProcess() )
+	{
+		status = ObReferenceObjectByHandle( hFile, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, ppDstFileObject, NULL ); // UserMode = STATUS_ACCESS_DENIED
+	}
+	else
+	{
+		//Process has exit already?
+		ERROR_PRINT( "\nCB: !!! ERROR ReferenceHandleInProcess: KeStackAttachProcess failed to switch process to: %p\n\n", peProcess );
+	}
 
     KeUnstackDetachProcess( &kApcSt );
 

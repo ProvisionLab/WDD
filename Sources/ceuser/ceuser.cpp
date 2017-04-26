@@ -1,10 +1,10 @@
-#include "common.h"
+#include "usercommon.h"
 #include "client.h"
 
 VOID Usage ()
 {
     _tprintf( _T("Connects to the CeedoBackup filter and backup files upon change\n") );
-    _tprintf( _T("Usage: ceuser -ini [cebackup.ini]\n") );
+    _tprintf( _T("Usage: ceuser [-ini cebackup.ini]\n") );
 }
 
 int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )

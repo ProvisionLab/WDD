@@ -5,7 +5,7 @@
 #include <dontuse.h>
 #include <suppress.h>
 #include "cebackup.h"
-#include "cecommon.h"
+#include "drvcommon.h"
 #include "util.h"
 
 // Assign text sections for each routine.
@@ -16,8 +16,8 @@
     #pragma alloc_text(PAGE, CbInstanceSetup)
     #pragma alloc_text(PAGE, CbInstanceTeardownStart)
     #pragma alloc_text(PAGE, CbInstanceTeardownComplete)
-    #pragma alloc_text(PAGE, BackupPortConnect)
-    #pragma alloc_text(PAGE, BackupPortDisconnect)
+//    #pragma alloc_text(PAGE, BackupPortConnect)
+//    #pragma alloc_text(PAGE, BackupPortDisconnect)
 #endif
 
 #pragma data_seg("NONPAGE")
@@ -552,12 +552,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     }
 
     // Skip if its opened for read
-    if( ! FlagOn( Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, FILE_WRITE_DATA ) )
+    if( ! FlagOn( Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, FILE_WRITE_DATA ) ) // FltObjects->FileObject->WriteAccess is not set in PreCreate yet!
         return FLT_PREOP_SUCCESS_NO_CALLBACK;      
-/*
-    if( ! FltObjects->FileObject->WriteAccess ) // Not set in PreCreate yet!
-        goto Cleanup;
-*/
 
     status = FltGetFileNameInformation( Data, FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_DEFAULT, &nameInfo );
     if( ! NT_SUCCESS( status ) )
@@ -581,7 +577,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
     RtlStringCbCopyW( strFileName, sizeof(strFileName), nameInfo->FinalComponent.Buffer );
 
-// TMP: FILTER OUT ONLY ONE OPERATION FOR NOW / File 777.txt
+// TMP: FILTER OUT ONLY WRITE TO File 777.txt
 /*
     UNICODE_STRING usStr777;
     RtlInitUnicodeString( &usStr777, L"777.txt" );
@@ -610,16 +606,15 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     MjCreatePrint( nameInfo, Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, Data->Iopb->Parameters.Create.ShareAccess, FltObjects->FileObject->Flags );
     //DbgBreakPoint();
 
-    ExAcquireFastMutex( &g_CeBackupData.Guard );
+    ExAcquireFastMutex( &g_CeBackupData.Guard ); //APCL IRQL
     UserProcess = g_CeBackupData.UserProcess;
     UserProcessKernel = g_CeBackupData.UserProcessKernel;
-    ExReleaseFastMutex( &g_CeBackupData.Guard );
+    ExReleaseFastMutex( &g_CeBackupData.Guard );    
 
     //Skip admin user tool operations
     if( UserProcess && IoThreadToProcess( Data->Thread ) == UserProcess )
     {
-        //TODO: Clarify
-        DEBUG_PRINT( "CB: INFO: Skipping CEUSER app EPROCESS=%p Ps=%p PsId=%p write to %S\n", UserProcess, PsGetCurrentProcess(), PsGetCurrentProcessId(), strFileName );
+        DEBUG_PRINT( "CB: INFO: Skipping CEUSER write to %S\n", strFileName );
         goto Cleanup;
     }
 
@@ -640,7 +635,6 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     }
 
     // Open file w/o Recursion
-
     IO_STATUS_BLOCK ioStatusCreate = {0};
     status = FltCreateFile( g_CeBackupData.Filter,
                             pInstanceContext->Instance,
@@ -739,7 +733,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
     if( ObIsKernelHandle( SourceHandle ) )
     {
-        DEBUG_PRINT( "CB: DEBUG SourceHandle handle is not user one: %p SourceProcessHandle=%p Process=%S\n\n", SourceHandle, SourceProcessHandle, strProcessName );
+		// System process write
+        DEBUG_PRINT( "CB: DEBUG SourceHandle handle is not user one: %p SourceProcessHandle=%p Process=%S\n", SourceHandle, SourceProcessHandle, strProcessName );
     }
 
     if( ! ObIsKernelHandle( SourceProcessHandle ) )
@@ -769,17 +764,19 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
     DEBUG_PRINT( "CB: DEBUG ZwDuplicateObject SourceProcessHandle=%p TargetProcessHandle=%p SourceHandle=%p TargetHandle=%p\n", SourceProcessHandle, TargetProcessHandle, SourceHandle, TargetHandle );
 
-    KAPC_STATE kApcSt;
-    KeStackAttachProcess( (PKPROCESS)UserProcess, &kApcSt );
-    status = ObReferenceObjectByHandle( TargetHandle, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pDstFileObject, NULL ); // UserMode = STATUS_ACCESS_DENIED
-    KeUnstackDetachProcess( &kApcSt );
+	status = ReferenceHandleInProcess( TargetHandle, UserProcess, &pDstFileObject );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", TargetHandle, GetStatusString( status ) );
+        ERROR_PRINT( "\nCB: !!! ERROR ReferenceHandleInProcess(%p) failed status=%S\n", TargetHandle, GetStatusString( status ) );
         goto Cleanup;
     }
 
-    BOOLEAN OkToOpen = TRUE;
+	if( ! pDstFileObject )
+	{
+		TMP_PRINT( "CB: DEBUG pDstFileObject == NULL TargetHandle=%p File: %S Process: %S\n", TargetHandle, strFileName, strProcessName );
+	}
+
+	BOOLEAN OkToOpen = TRUE;
     status = SendHandleToUser( TargetHandle, FltObjects->Volume, &nameInfo->ParentDir, &nameInfo->FinalComponent, basicInfo.CreationTime, basicInfo.LastAccessTime, basicInfo.LastWriteTime, basicInfo.ChangeTime, basicInfo.FileAttributes, &OkToOpen );
     if( ! NT_SUCCESS( status ))
     {
@@ -787,9 +784,10 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
+    // Write rejection support
     if( ! OkToOpen )
     {
-        INFO_PRINT( "CB: INFO: Access denied by admin app %wZ", nameInfo->Name );
+        INFO_PRINT( "CB: INFO: Access denied by ceuser app %wZ", nameInfo->Name );
 
         FltCancelFileOpen( FltObjects->Instance, FltObjects->FileObject );
 
@@ -800,14 +798,18 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     }
 
 Cleanup:
-    if( pDstFileObject )
-        ObDereferenceObject( pDstFileObject );
-
     // Considering possible CloseHandle in ceuser.exe
     if( TargetHandle && UserProcess )
-        CloseHandleInProcess( TargetHandle, UserProcess );
+	{
+		//TODO: Consider closing in ceuser process ...
+		if( status != STATUS_PORT_DISCONNECTED ) // We don't want BSOD
+			CloseHandleInProcess( TargetHandle, UserProcess );
+	}
 
-    if( pSrcFileObject )
+    if( pDstFileObject )
+		ObDereferenceObject( pDstFileObject );
+
+	if( pSrcFileObject )
         ObDereferenceObject( pSrcFileObject );
 
     if( hFile )
@@ -824,15 +826,15 @@ Cleanup:
 
     size_t iLen = 0;
     RtlStringCchLengthW( strProcessName, MAX_PATH_SIZE, &iLen );
-    if( iLen ) // FltGetFileNameInformation not failed
-        DEBUG_PRINT( "CB: DEBUG PreCreate EXIT %S Process=%S\n", strFileName, strProcessName );
+    if( iLen ) // ZwQueryInformationProcess returned process name
+        DEBUG_PRINT( "CB: DEBUG PreCreate EXIT File: %S Process: %S\n", strFileName, strProcessName );
 
     return filterStatus;
 }
 
 NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie )
 {
-    PAGED_CODE();
+    //PAGED_CODE();
 
     UNREFERENCED_PARAMETER( ServerPortCookie );
     UNREFERENCED_PARAMETER( ConnectionContext );
@@ -843,7 +845,7 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     FLT_ASSERT( g_CeBackupData.UserProcess == NULL );
     FLT_ASSERT( g_CeBackupData.UserProcessKernel == NULL );
 
-    //  Set the user process and port. In a production filter it may be necessary to synchronize access to such fields with port lifetime. For instance, while filter manager will synchronize
+	//  Set the user process and port. In a production filter it may be necessary to synchronize access to such fields with port lifetime. For instance, while filter manager will synchronize
     //  FltCloseClientPort with FltSendMessage's reading of the port handle, synchronizing access to the UserProcess would be up to the filter.
 
     HANDLE hProcess = NULL;
@@ -861,6 +863,7 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     g_CeBackupData.ClientPort = ClientPort;
     ExReleaseFastMutex( &g_CeBackupData.Guard );
 
+	//DbgBreakPoint();
     INFO_PRINT( "CB: INFO BackupPortConnect: port=0x%p PsGetCurrentProcess()=%p ZwOpenProcess=%p\n", ClientPort, PsGetCurrentProcess(), hProcess );
 
     return STATUS_SUCCESS;
@@ -870,19 +873,25 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
 {
     UNREFERENCED_PARAMETER( ConnectionCookie );
 
-    PAGED_CODE();
+    //PAGED_CODE();
 
-    INFO_PRINT( "CB: INFO BackupPortDisconnect: port=0x%p\n", g_CeBackupData.ClientPort );
+    INFO_PRINT( "CB: INFO BackupPortDisconnect: port=0x%p ENTER\n", g_CeBackupData.ClientPort );
 
-    //  Close our handle to the connection: note, since we limited max connections to 1, another connect will not be allowed until we return from the disconnect routine.
+	//  Close our handle to the connection: note, since we limited max connections to 1, another connect will not be allowed until we return from the disconnect routine.
     FltCloseClientPort( g_CeBackupData.Filter, &g_CeBackupData.ClientPort );
 
     //  Reset the user-process field.
+    ExAcquireFastMutex( &g_CeBackupData.Guard );
+	g_CeBackupData.ClientPort = NULL;
     g_CeBackupData.UserProcess = NULL;
-    if( g_CeBackupData.UserProcessKernel )
+
+	if( g_CeBackupData.UserProcessKernel )
         ZwClose( g_CeBackupData.UserProcessKernel );
+
     g_CeBackupData.UserProcessKernel = NULL;
     g_CeBackupData.UserProcessId = NULL;
+
+    ExReleaseFastMutex( &g_CeBackupData.Guard );
 }
 
 NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCUNICODE_STRING ParentDir, _In_ PCUNICODE_STRING FileName, _In_ LARGE_INTEGER CreationTime, _In_ LARGE_INTEGER LastAccessTime, _In_ LARGE_INTEGER LastWriteTime, _In_ LARGE_INTEGER ChangeTime, _In_ ULONG FileAttributes, _Out_ PBOOLEAN OkToOpen )

@@ -5,14 +5,14 @@
 //
 // https://github.com/benhoyt/inih
 
-#include "common.h"
+#include "usercommon.h"
 #include "INIReader.h"
 #include "ini.h"
 
 INIReader::INIReader(const std::wstring& filename)
     : _parserError(0)
 {
-    _parserError = ini_parse( filename.c_str(), ValueHandler, this);
+    _parserError = ini_parse( filename.c_str(), ValueHandler, this );
 }
 
 INIReader::~INIReader()
