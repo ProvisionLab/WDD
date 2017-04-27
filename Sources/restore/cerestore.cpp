@@ -1,17 +1,3 @@
-/*
-3. output all backup list                               8
-   param listall
-4. output backup list by file name                      2
-   param list name
-5. output backup list by path                           2
-   param list full_name
-6. restore to custom directory                          4
-   param restore_to full_name_with_index dest_dir
-7. restore to original location/overwrite               4
-   param restore full_name_with_index
-8. run one instance run only check to avoid conflicts   2
-*/
-
 #include "usercommon.h"
 #include "restore.h"
 
@@ -27,7 +13,7 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
     tstring strIniPath = _T("cebackup.ini");
 	tstring strCommand, strPath, strRestoreToDir;
 
-	if( argc < 2 || argc > 5 )
+	if( argc < 2 || argc > 6 )
 	{
 		Usage();
 		return 1;
@@ -62,7 +48,16 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 	}
 	else if( strCommand == _T("list") || strCommand == _T("restore") || strCommand == _T("restore_to") )
 	{
-		if( argc < 3 )
+		if( strCommand == _T("restore_to") )
+		{
+			if( bHaveIni ? argc < 6 : argc < 4 )
+			{
+				Usage();
+				return 1;
+			}
+			strRestoreToDir = bHaveIni ? argv[5] : argv[3];
+		}
+		else if( bHaveIni ? argc < 5 : argc < 3 )
 		{
 			Usage();
 			return 1;

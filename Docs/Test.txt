@@ -1,0 +1,11 @@
+1. Fill cebackup.ini with appropriate files and directories you want to monitor
+
+2. Make sure cebackup is installed and run, ceuser.exe launched, see Install.txt
+
+3. Write to the file form the [Included*] list of cebackup.ini, check Destination directory
+
+4. Try to list of backup files: restore.exe listall
+
+5. Try to restore some backup file, e.g: restore.exe restore_to example.txt.1 c:\temp
+
+6. Try to restore some backup file to the original location, e.g: restore.exe restore example.txt.1

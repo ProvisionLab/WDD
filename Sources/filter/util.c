@@ -84,12 +84,11 @@ VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAcce
 
     CHECK_STATUS( RtlUnicodeStringCatString( &SaBuffer, L")" ) );
 
-     // FO_OPENED_CASE_SENSITIVE FO_FILE_OPEN
     CHECK_STATUS( RtlUnicodeStringCatString( &FlgBuffer, L")" ) );
 
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &DaBuffer ) );
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &SaBuffer ) );
-    CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &FlgBuffer ) );
+    CHECK_STATUS( RtlUnicodeStringCatString( &FinalBuffer, GetFileFlagString(Flags) ) );
 
     DEBUG_PRINT( "%wZ", FinalBuffer );
 }

@@ -4,7 +4,7 @@
 namespace Utils
 {
 
-tstring MapToDestination( const tstring& Path )
+tstring MapToDestination( const tstring& Destination, const tstring& Path )
 {
     tstring strMapped = Path;
 
@@ -16,13 +16,14 @@ tstring MapToDestination( const tstring& Path )
     }
 
     strMapped = strMapped.substr( 0, pos ) + strMapped.substr( pos + 1 );
+	strMapped = Destination + _T("\\") + strMapped;
 
     return strMapped;
 }
 
-tstring MapToOriginal( const tstring& Path )
+tstring MapToOriginal( const tstring& Destination, const tstring& Path )
 {
-    tstring strMapped = Path;
+    tstring strMapped = Path.substr( Destination.size() + 1 );
 
     size_t pos = strMapped.find( _T('\\') );
     if( pos == tstring::npos || pos != 1 )
@@ -37,22 +38,20 @@ tstring MapToOriginal( const tstring& Path )
 }
 
 /*File indexes
-    a.txt     -> a.txt.X
-    a.txt.1   -> a.txt.1.X
+    a.txt     -> a.txt.N
+    a.txt.1   -> a.txt.1.N
     Directories
-    1\1.txt   -> 1\X\1.txt
-    1\1\1.txt -> 1\1\X\1.txt
+    1\1.txt   -> 1\N\1.txt
+    1\1\1.txt -> 1\1\N\1.txt
 */
-bool GetLastIndex( const tstring& Destination, const tstring& MappedPath, int& Index )
+bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index )
 {
     Index = 0;
 
-    tstring strFinalPath = Destination + _T("\\") + MappedPath;
-
     CPathDetails pd;
-    if( ! pd.Parse( true, strFinalPath ) )
+    if( ! pd.Parse( false, MappedPathNoIndex ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), MappedPath.c_str() );
+        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), MappedPathNoIndex.c_str() );
         return false;
     }
 
@@ -180,11 +179,13 @@ tstring GetLastErrorString()
 }
 
 CPathDetails::CPathDetails()
+	: Mapped(false)
 {
 }
 
 bool CPathDetails::Parse( bool aMapped, const tstring& Path )
 {
+	Mapped = aMapped;
     Directory = _T("");
 
     size_t pos = Path.rfind( _T('\\') ) ;
@@ -193,9 +194,25 @@ bool CPathDetails::Parse( bool aMapped, const tstring& Path )
 
     Directory = Path.substr( 0, pos );
     Name = Path.substr( pos + 1 );
-    pos = Name.rfind( _T('.') ) ;
-    if( pos != tstring::npos )
-        Extension = Name.substr( pos + 1 );
+
+	if( aMapped )
+	{
+	    pos = Name.rfind( _T('.') ) ;
+		if( pos == tstring::npos )
+			return false;
+
+		Index = Name.substr( pos + 1 );
+		Name = Name.substr( 0, pos );
+		pos = Name.rfind( pos-1, _T('.') ) ;
+		if( pos != tstring::npos )
+			Extension = Name.substr( pos + 1 );
+	}
+	else
+	{
+	    pos = Name.rfind( _T('.') ) ;
+		if( pos != tstring::npos )
+			Extension = Name.substr( pos + 1 );
+	}
 
     return true;
 }

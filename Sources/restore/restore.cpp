@@ -26,9 +26,9 @@ bool CRestore::Run( const tstring& IniPath, const tstring& Command, const tstrin
 	else if( Command == _T("list") )
 		return ListFiles( settings.Destination, false, Path, IsPath );
 	else if( Command == _T("restore") )
-		return Restore( settings.Destination, false, Path );
+		return Restore( settings.Destination, Path );
 	else if( Command == _T("restore_to") )
-		return Restore( settings.Destination, false, Path, RestoreToDir );
+		return Restore( settings.Destination, Path, RestoreToDir );
 	else
 	{
 		ERROR_PRINT( _T("Unknown command") );
@@ -68,7 +68,7 @@ bool CRestore::ListFiles( const tstring& Destination, bool All, const tstring& P
 			return false;
 		}
 
-		StartDirectory += _T("\\") + Utils::MapToDestination( pd.Directory );
+		StartDirectory = Utils::MapToDestination( Destination, pd.Directory );
 
 		ret = IterateDirectories( Destination, StartDirectory, pd.Name, All, IsPath, arrFiles );
 	}
@@ -146,8 +146,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 				}
 
 				tstring Path = Directory + _T("\\") + strName;
-				Path = Path.substr( Destination.size() + 1 );
-				Path = Utils::MapToOriginal( Path );
+				Path = Utils::MapToOriginal( Destination, Path );
 				Files.push_back( Path );
             }
         } while( ::FindNextFile( hFind, &ffd ) );
@@ -158,7 +157,62 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 	return true;
 }
 
-bool CRestore::Restore( const tstring& Destination, bool To, const tstring& Path, const tstring& RestoreToDir )
+bool CRestore::Restore( const tstring& Destination, const tstring& Path, const tstring& RestoreToDir )
 {
+	if( Path.rfind( _T('.') ) == tstring::npos )
+	{
+        ERROR_PRINT( _T("ERROR: Path without index was provided: %s\n"), Path.c_str() );
+        return false;
+	}
+
+	Utils::CPathDetails pd;
+	if( ! pd.Parse( true, Path ) )
+	{
+        ERROR_PRINT( _T("ERROR: Failed parse provided path: %s\n"), Path.c_str() );
+        return false;
+	}
+
+	int iIndex = _tstoi( pd.Index.c_str() );
+	if( iIndex <= 0 )
+	{
+        ERROR_PRINT( _T("ERROR: No Index was found in provided path: %s\n"), Path.c_str() );
+        return false;
+	}
+
+	HANDLE hPort = NULL;
+    HRESULT hr = ::FilterConnectCommunicationPort( RESTORE_PORT_NAME, 0, NULL, 0, NULL, &hPort );
+    if( IS_ERROR( hr ) )
+    {
+        ERROR_PRINT( _T("ERROR: Failed connect to RESTORE filter port: 0x%08x\n"), hr );
+        return false;
+    }
+
+	tstring strDestPath = Path;
+	tstring strSrcPath;
+	if( RestoreToDir.size() )
+	{
+		strSrcPath = Utils::MapToDestination( Destination, Path );
+		strDestPath = RestoreToDir + _T("\\") + pd.Name;
+	}
+	else
+	{
+		strSrcPath = Utils::MapToDestination( Destination, Path );
+		strDestPath = pd.Directory + _T("\\") + pd.Name;
+	}
+
+	INFO_PRINT( _T("INFO: Copying %s to %s\n"), strSrcPath.c_str(), strDestPath.c_str() );
+	if( ! ::CopyFile( strSrcPath.c_str(), strDestPath.c_str(), FALSE ) )
+    {
+		if( RestoreToDir.size() )
+			ERROR_PRINT( _T("ERROR: Failed to restore file '%s' to restore_to directory '%s'. Error: %s\n"), strDestPath.c_str(), RestoreToDir.c_str(), Utils::GetLastErrorString().c_str() );
+		else
+			ERROR_PRINT( _T("ERROR: Failed to restore file '%s'. Error: %s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+        goto Cleanup;
+    }
+
+Cleanup:
+	if( hPort )
+		::CloseHandle( hPort );
+
 	return true;
 }

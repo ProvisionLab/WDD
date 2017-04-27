@@ -55,19 +55,19 @@ bool CBackupClient::IsIncluded( const tstring& Path )
 bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD SrcAttribute, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
 {
     bool ret = false;
-    tstring strMappedPath = Utils::MapToDestination( SrcPath );
+    tstring strMappedPathNoIndex = Utils::MapToDestination( _Settings.Destination, SrcPath );
 
     int iIndex = 0;
-    if( ! Utils::GetLastIndex( _Settings.Destination, strMappedPath, iIndex ) )
+    if( ! Utils::GetLastIndex( strMappedPathNoIndex, iIndex ) )
         return false;
 
     iIndex ++;
     std::wstringstream oss;
-    oss << _Settings.Destination << _T("\\") << strMappedPath << _T(".") << iIndex;
+    oss << strMappedPathNoIndex << _T(".") << iIndex;
     tstring strDestPath = oss.str();
 
     Utils::CPathDetails pd;
-    if( ! pd.Parse( true, strDestPath ) )
+    if( ! pd.Parse( false, strDestPath ) )
     {
         ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), strDestPath.c_str() );
         return false;
@@ -304,6 +304,9 @@ bool CBackupClient::Run( const tstring& IniPath )
 
 	INFO_PRINT( _T("[Settings] File: %s\n"), IniPath.c_str() );
 	INFO_PRINT( _T("[Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
+
+    if( ! Utils::CreateDirectories( _Settings.Destination.c_str() ) )
+        return false;
 
 	InitializeCriticalSection( &_guardDestFile );
 

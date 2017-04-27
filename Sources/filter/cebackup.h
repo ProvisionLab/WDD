@@ -15,12 +15,15 @@ typedef struct _BACKUP_DATA
 {
     PDRIVER_OBJECT DriverObject;
     PFLT_FILTER Filter;
-    PFLT_PORT ServerPort;
-    PEPROCESS UserProcess;
-    HANDLE UserProcessKernel;
+    PFLT_PORT BackupPort;
+	PFLT_PORT RestorePort;
+    PFLT_PORT ClientBackupPort;
+    PFLT_PORT ClientRestorePort;
+    PEPROCESS BackupProcess;
+    HANDLE BackupProcessKernel;
     PEPROCESS UserProcessId;
-    PFLT_PORT ClientPort;
     FAST_MUTEX Guard;
+	PEPROCESS RestoreProcess;
 } BACKUP_DATA, *PBACKUP_DATA;
 
 /*************************************************************************
@@ -39,7 +42,9 @@ FLT_POSTOP_CALLBACK_STATUS PostOperation ( _Inout_ PFLT_CALLBACK_DATA Data, _In_
 FLT_PREOP_CALLBACK_STATUS PreOperationNo ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFLT_RELATED_OBJECTS FltObjects, _Flt_CompletionContext_Outptr_ PVOID *CompletionContext );
 VOID CbContextCleanup ( _In_ PFLT_CONTEXT Context, _In_ FLT_CONTEXT_TYPE ContextType );
 NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie );
+NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie );
 VOID BackupPortDisconnect ( _In_opt_ PVOID ConnectionCookie );
+VOID RestorePortDisconnect ( _In_opt_ PVOID ConnectionCookie );
 NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCUNICODE_STRING ParentDir, _In_ PCUNICODE_STRING FileName, _In_ LARGE_INTEGER CreationTime, _In_ LARGE_INTEGER LastAccessTime, _In_ LARGE_INTEGER LastWriteTime, _In_ LARGE_INTEGER ChangeTime, _In_ ULONG FileAttributes, _Out_ PBOOLEAN OkToOpen );
 
 //Undocumented DDK

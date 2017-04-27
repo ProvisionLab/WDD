@@ -198,8 +198,8 @@ NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Re
 {
     UNREFERENCED_PARAMETER( RegistryPath );
     NTSTATUS status = STATUS_SUCCESS;
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING uniPortName;
+    OBJECT_ATTRIBUTES oaBackup, oaRestore;
+    UNICODE_STRING uniBackupPortName, uniRestorePortName;
     PSECURITY_DESCRIPTOR sd;
 
     INFO_PRINT( "CB: INFO DriverEntry\n" );
@@ -213,20 +213,23 @@ NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Re
 	    goto Cleanup;
 
     //  Create a communication port.
-    RtlInitUnicodeString( &uniPortName, BACKUP_PORT_NAME );
+    RtlInitUnicodeString( &uniBackupPortName, BACKUP_PORT_NAME );
+	RtlInitUnicodeString( &uniRestorePortName, RESTORE_PORT_NAME );
 
     //  We secure the port so only ADMINs & SYSTEM can access it.
     status = FltBuildDefaultSecurityDescriptor( &sd, FLT_PORT_ALL_ACCESS );
     if( ! NT_SUCCESS( status ) )
         goto Cleanup;
 
-    InitializeObjectAttributes( &oa, &uniPortName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, sd );
+    InitializeObjectAttributes( &oaBackup, &uniBackupPortName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, sd );
+	InitializeObjectAttributes( &oaRestore, &uniRestorePortName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, sd );
 
-    status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.ServerPort, &oa, NULL, BackupPortConnect, BackupPortDisconnect, NULL, 1 );
+    status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.BackupPort,  &oaBackup,  NULL, BackupPortConnect,  BackupPortDisconnect,  NULL, 1 );
 
-    //  Free the security descriptor in all cases. It is not needed once the call to FltCreateCommunicationPort() is made.
+	status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.RestorePort, &oaRestore, NULL, RestorePortConnect, RestorePortDisconnect, NULL, 1 );
+
+	//  Free the security descriptor in all cases. It is not needed once the call to FltCreateCommunicationPort() is made.
     FltFreeSecurityDescriptor( sd );
-
     if( ! NT_SUCCESS( status ) )
         goto Cleanup;
 
@@ -245,13 +248,19 @@ Cleanup:
         g_CeBackupData.Filter;
     }
 
-    if( g_CeBackupData.ServerPort )
+    if( g_CeBackupData.BackupPort )
     {
-        FltCloseCommunicationPort( g_CeBackupData.ServerPort );
-        g_CeBackupData.ServerPort = NULL;
+        FltCloseCommunicationPort( g_CeBackupData.BackupPort );
+        g_CeBackupData.BackupPort = NULL;
     }
 
-    return status;
+    if( g_CeBackupData.RestorePort )
+    {
+        FltCloseCommunicationPort( g_CeBackupData.RestorePort );
+        g_CeBackupData.RestorePort = NULL;
+    }
+
+	return status;
 }
 
 NTSTATUS CbUnload ( _In_ FLT_FILTER_UNLOAD_FLAGS Flags )
@@ -262,7 +271,8 @@ NTSTATUS CbUnload ( _In_ FLT_FILTER_UNLOAD_FLAGS Flags )
 
     INFO_PRINT( "CB: INFO CbUnload\n" );
 
-    FltCloseCommunicationPort( g_CeBackupData.ServerPort );
+    FltCloseCommunicationPort( g_CeBackupData.BackupPort );
+	FltCloseCommunicationPort( g_CeBackupData.RestorePort );
 
     FltUnregisterFilter( g_CeBackupData.Filter );
 
@@ -320,7 +330,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     PCB_INSTANCE_CONTEXT pInstanceContext = NULL;
     PFILE_OBJECT pSrcFileObject = NULL;
     HANDLE UserProcessKernel = NULL;
-    PEPROCESS UserProcess = NULL;
+    PEPROCESS BackupProcess = NULL;
+	PEPROCESS RestoreProcess = NULL;
     HANDLE TargetHandle = NULL;
     HANDLE SourceProcessHandle = NULL;
     HANDLE TargetProcessHandle = NULL;
@@ -420,18 +431,25 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     //DbgBreakPoint();
 
     ExAcquireFastMutex( &g_CeBackupData.Guard ); //APCL IRQL
-    UserProcess = g_CeBackupData.UserProcess;
-    UserProcessKernel = g_CeBackupData.UserProcessKernel;
+    BackupProcess = g_CeBackupData.BackupProcess;
+	RestoreProcess = g_CeBackupData.RestoreProcess;
+    UserProcessKernel = g_CeBackupData.BackupProcessKernel;
     ExReleaseFastMutex( &g_CeBackupData.Guard );    
 
     //Skip admin user tool operations
-    if( UserProcess && IoThreadToProcess( Data->Thread ) == UserProcess )
+    if( BackupProcess && IoThreadToProcess( Data->Thread ) == BackupProcess )
     {
         DEBUG_PRINT( "CB: INFO: Skipping CEUSER write to %S\n", strFileName );
         goto Cleanup;
     }
 
-    if( UserProcessKernel == NULL )
+    if( RestoreProcess && IoThreadToProcess( Data->Thread ) == RestoreProcess )
+    {
+        INFO_PRINT( "CB: INFO: Skipping RESTORE write to %S\n", strFileName );
+        goto Cleanup;
+    }
+
+	if( BackupProcess == NULL )
     {
         INFO_PRINT( "CB: INFO: CEUSER application is not connected to filter\n" );
         goto Cleanup;
@@ -578,7 +596,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     DEBUG_PRINT( "CB: DEBUG ZwDuplicateObject SourceProcessHandle=%p TargetProcessHandle=%p SourceHandle=%p TargetHandle=%p\n", SourceProcessHandle, TargetProcessHandle, SourceHandle, TargetHandle );
 
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
-	status = ReferenceHandleInProcess( TargetHandle, UserProcess, &pDstFileObject );
+	status = ReferenceHandleInProcess( TargetHandle, BackupProcess, &pDstFileObject );
     if( ! NT_SUCCESS( status ) )
     {
         ERROR_PRINT( "\nCB: !!! ERROR ReferenceHandleInProcess(%p) failed status=%S\n", TargetHandle, GetStatusString( status ) );
@@ -587,7 +605,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
 	if( ! pDstFileObject )
 	{
-		TMP_PRINT( "CB: DEBUG pDstFileObject == NULL TargetHandle=%p File: %S Process: %S\n", TargetHandle, strFileName, strProcessName );
+		DEBUG_PRINT( "CB: DEBUG pDstFileObject == NULL TargetHandle=%p File: %S Process: %S\n", TargetHandle, strFileName, strProcessName );
 	}
 #endif
 
@@ -615,11 +633,11 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 Cleanup:
     // Considering possible CloseHandle in ceuser.exe
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
-    if( TargetHandle && UserProcess )
+    if( TargetHandle && BackupProcess )
 	{
 		//TODO: Consider closing in CEUSER process ...
 		if( status != STATUS_PORT_DISCONNECTED ) // We don't want BSOD
-			CloseHandleInProcess( TargetHandle, UserProcess );
+			CloseHandleInProcess( TargetHandle, BackupProcess );
 	}
 
     if( pDstFileObject )
@@ -658,9 +676,9 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     UNREFERENCED_PARAMETER( SizeOfContext);
     UNREFERENCED_PARAMETER( ConnectionCookie = NULL );
 
-    FLT_ASSERT( g_CeBackupData.ClientPort == NULL );
-    FLT_ASSERT( g_CeBackupData.UserProcess == NULL );
-    FLT_ASSERT( g_CeBackupData.UserProcessKernel == NULL );
+    FLT_ASSERT( g_CeBackupData.ClientBackupPort == NULL );
+    FLT_ASSERT( g_CeBackupData.BackupProcess == NULL );
+    FLT_ASSERT( g_CeBackupData.BackupProcessKernel == NULL );
 
 	//  Set the user process and port. In a production filter it may be necessary to synchronize access to such fields with port lifetime. For instance, while filter manager will synchronize
     //  FltCloseClientPort with FltSendMessage's reading of the port handle, synchronizing access to the UserProcess would be up to the filter.
@@ -674,10 +692,10 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     }
 
     ExAcquireFastMutex( &g_CeBackupData.Guard );
-    g_CeBackupData.UserProcessKernel = hProcess;
-    g_CeBackupData.UserProcess = PsGetCurrentProcess();
+    g_CeBackupData.BackupProcessKernel = hProcess;
+    g_CeBackupData.BackupProcess = PsGetCurrentProcess();
     g_CeBackupData.UserProcessId = PsGetCurrentProcessId();
-    g_CeBackupData.ClientPort = ClientPort;
+    g_CeBackupData.ClientBackupPort = ClientPort;
     ExReleaseFastMutex( &g_CeBackupData.Guard );
 
 	//DbgBreakPoint();
@@ -686,29 +704,65 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     return STATUS_SUCCESS;
 }
 
-VOID BackupPortDisconnect( _In_opt_ PVOID ConnectionCookie )
+VOID BackupPortDisconnect( _In_opt_ PVOID ConnectionCookie )
 {
     UNREFERENCED_PARAMETER( ConnectionCookie );
 
     //PAGED_CODE();
 
-    INFO_PRINT( "CB: INFO BackupPortDisconnect: port=0x%p ENTER\n", g_CeBackupData.ClientPort );
+    INFO_PRINT( "CB: INFO BackupPortDisconnect: port=0x%p ENTER\n", g_CeBackupData.ClientBackupPort );
 
 	//  Close our handle to the connection: note, since we limited max connections to 1, another connect will not be allowed until we return from the disconnect routine.
-    FltCloseClientPort( g_CeBackupData.Filter, &g_CeBackupData.ClientPort );
+    FltCloseClientPort( g_CeBackupData.Filter, &g_CeBackupData.ClientBackupPort );
 
     //  Reset the user-process field.
+	HANDLE BackupProcessKernel = NULL;
     ExAcquireFastMutex( &g_CeBackupData.Guard );
-	g_CeBackupData.ClientPort = NULL;
-    g_CeBackupData.UserProcess = NULL;
-
-	if( g_CeBackupData.UserProcessKernel )
-        ZwClose( g_CeBackupData.UserProcessKernel );
-
-    g_CeBackupData.UserProcessKernel = NULL;
+	g_CeBackupData.ClientBackupPort = NULL;
+    g_CeBackupData.BackupProcess = NULL;
+	BackupProcessKernel = g_CeBackupData.BackupProcessKernel;
+    g_CeBackupData.BackupProcessKernel = NULL;
     g_CeBackupData.UserProcessId = NULL;
-
     ExReleaseFastMutex( &g_CeBackupData.Guard );
+
+	if( BackupProcessKernel )
+        ZwClose( BackupProcessKernel );
+}
+
+NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie )
+{
+    //PAGED_CODE();
+    UNREFERENCED_PARAMETER( ServerPortCookie );
+    UNREFERENCED_PARAMETER( ConnectionContext );
+    UNREFERENCED_PARAMETER( SizeOfContext);
+    UNREFERENCED_PARAMETER( ConnectionCookie = NULL );
+
+    FLT_ASSERT( g_CeBackupData.ClientRestorePort == NULL );
+    FLT_ASSERT( g_CeBackupData.RestoreProcess == NULL );
+
+    ExAcquireFastMutex( &g_CeBackupData.Guard );
+    g_CeBackupData.RestoreProcess = PsGetCurrentProcess();
+    g_CeBackupData.ClientRestorePort = ClientPort;
+	ExReleaseFastMutex( &g_CeBackupData.Guard );
+
+    INFO_PRINT( "CB: INFO RestorePortConnect: port=0x%p PsGetCurrentProcess()=%p\n", ClientPort, PsGetCurrentProcess() );
+
+    return STATUS_SUCCESS;
+}
+
+VOID RestorePortDisconnect( _In_opt_ PVOID ConnectionCookie )
+{
+    //PAGED_CODE();
+    UNREFERENCED_PARAMETER( ConnectionCookie );
+
+    INFO_PRINT( "CB: INFO RestorePortDisconnect: port=0x%p ENTER\n", g_CeBackupData.ClientRestorePort );
+
+    FltCloseClientPort( g_CeBackupData.Filter, &g_CeBackupData.ClientRestorePort );
+
+	ExAcquireFastMutex( &g_CeBackupData.Guard );
+	g_CeBackupData.ClientRestorePort = NULL;
+    g_CeBackupData.RestoreProcess = NULL;
+	ExReleaseFastMutex( &g_CeBackupData.Guard );
 }
 
 NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCUNICODE_STRING ParentDir, _In_ PCUNICODE_STRING FileName, _In_ LARGE_INTEGER CreationTime, _In_ LARGE_INTEGER LastAccessTime, _In_ LARGE_INTEGER LastWriteTime, _In_ LARGE_INTEGER ChangeTime, _In_ ULONG FileAttributes, _Out_ PBOOLEAN OkToOpen )
@@ -719,7 +773,7 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCU
 
     *OkToOpen = TRUE;
 
-    if( g_CeBackupData.ClientPort == NULL )
+    if( g_CeBackupData.ClientBackupPort == NULL )
         return STATUS_PORT_DISCONNECTED;
 
     //Getting Disk Letter:
@@ -769,7 +823,7 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCU
 
     replyLength = sizeof( BACKUP_REPLY );
 
-    status = FltSendMessage( g_CeBackupData.Filter, &g_CeBackupData.ClientPort, pNotification, sizeof(BACKUP_NOTIFICATION), pNotification, &replyLength, NULL );
+    status = FltSendMessage( g_CeBackupData.Filter, &g_CeBackupData.ClientBackupPort, pNotification, sizeof(BACKUP_NOTIFICATION), pNotification, &replyLength, NULL );
     if( ! NT_SUCCESS(status) )
     {
         ERROR_PRINT( "\nCB: !!! ERROR FltSendMessage failed status=%S\n", GetStatusString( status ) );

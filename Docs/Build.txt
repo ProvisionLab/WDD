@@ -1,0 +1,12 @@
+BUILT and TESTED on Windows 10 x64
+
+Requirements to build the project:
+
+Download and install Visual Studio 2015:
+https://www.visualstudio.com/downloads/
+
+Download and install Window SDK for Windows 10
+https://go.microsoft.com/fwlink/p/?LinkID=845298
+
+Download and install WDK for Windows 10
+https://go.microsoft.com/fwlink/p/?LinkId=845980

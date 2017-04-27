@@ -12,7 +12,7 @@ bool CSettings::Init( const std::wstring& IniPath )
 
 	if( reader.ParseError() < 0 )
     {
-        ERROR_PRINT( _T("Can't load '%s'\n"), IniPath.c_str() );
+        ERROR_PRINT( _T("Can't find/load '%s'\n"), IniPath.c_str() );
         return false;
     }
 
@@ -30,9 +30,6 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
     }
 
     Destination = Utils::RemoveEndingSlash( Destination );
-
-    if( ! Utils::CreateDirectories( Destination.c_str() ) )
-        return false;
 
     int iCount = reader.GetInteger( _T("IncludeFile"), _T("Count"), 0 );
     for( int i=1; i<=iCount; i++ )

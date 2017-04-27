@@ -3,6 +3,7 @@
 #define MAX_PATH_SIZE 1024
 
 #define BACKUP_PORT_NAME L"\\CeBackupPort"
+#define RESTORE_PORT_NAME L"\\CeRestorePort"
 
 typedef struct _BACKUP_NOTIFICATION
 {

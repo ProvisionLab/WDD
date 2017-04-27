@@ -2,9 +2,9 @@
 
 namespace Utils
 {
-    tstring MapToDestination( const tstring& Path );
-	tstring MapToOriginal( const tstring& Path );
-    bool GetLastIndex( const tstring& Destination, const tstring& MappedPath, int& Index );
+    tstring MapToDestination( const tstring& Destination, const tstring& Path );
+	tstring MapToOriginal( const tstring& Destination, const tstring& Path );
+    bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index );
     tstring RemoveEndingSlash( const tstring& Dir );
     tstring ToLower( const tstring& str );
     bool DoesDirectoryExists( const tstring& Directory );
@@ -20,5 +20,7 @@ namespace Utils
 		tstring Directory;
 		tstring Name;
 		tstring Extension;
+		tstring Index;
+		bool Mapped;
 	};
 }
