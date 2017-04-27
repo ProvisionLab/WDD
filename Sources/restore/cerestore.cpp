@@ -18,42 +18,68 @@
 VOID Usage ()
 {
     _tprintf( _T("Restores backed up file\n") );
-    _tprintf( _T("Usage: restore [-ini cebackup.ini] command\n") );
+    _tprintf( _T("Usage: restore [-ini cebackup.ini] command\n\tCommands: listall | list name | list path | restore path.Index | restore_to path.Index dir\n") );
 }
 
-int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
+int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 {
-    _tprintf( _T("Starting ...\n") );
-    std::wstring strIniPath = _T("cebackup.ini");
+	bool bIsPath = false;
+    tstring strIniPath = _T("cebackup.ini");
+	tstring strCommand, strPath, strRestoreToDir;
 
-    if( argc > 1 )
+	if( argc < 2 || argc > 5 )
+	{
+		Usage();
+		return 1;
+	}
+
+	tstring strFirstParam = argv[1];
+    if( strFirstParam == _T("/?") )
     {
-        if( _tcscmp( argv[1], _T("/?") ) )
-        {
-            Usage();
-            return 1;
-        }
-
-        if( ! _tcscmp( argv[1], _T("-ini") ) )
-        {
-            Usage();
-            return 1;
-        }
-        
-        if( argc > 3 )
-        {
-            Usage();
-            return 1;
-        }
-
-        strIniPath = argv[2];
+        Usage();
+        return 1;
     }
 
-    CRestore restore;
+	bool bHaveIni = false;
+	if( strFirstParam == _T("-ini") )
+    {
+		if( argc < 4 )
+		{
+			Usage();
+			return 1;
+		}
+	    strIniPath = argv[2];
+		bHaveIni = true;
+    }
 
-    if( ! restore.Run( strIniPath ) )
+	if( bHaveIni )
+		strCommand = argv[3];
+	else
+		strCommand = strFirstParam;
+
+	if( strCommand == _T("listall") )
+	{
+	}
+	else if( strCommand == _T("list") || strCommand == _T("restore") || strCommand == _T("restore_to") )
+	{
+		if( argc < 3 )
+		{
+			Usage();
+			return 1;
+		}
+		strPath = bHaveIni ? argv[4] : argv[2];
+		bIsPath = strPath.find( _T('\\') ) != tstring::npos;
+	}
+	else
+	{
+		Usage();
+		return 1;
+	}
+
+	CRestore restore;
+
+    if( ! restore.Run( strIniPath, strCommand, strPath, bIsPath, strRestoreToDir ) )
         return 1;
 
-    _tprintf( _T("Exiting ...") );
     return 0;
 }

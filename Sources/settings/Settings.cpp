@@ -12,7 +12,7 @@ bool CSettings::Init( const std::wstring& IniPath )
 
 	if( reader.ParseError() < 0 )
     {
-        DEBUG_PRINT( _T("Can't load '%s'\n"), IniPath.c_str() );
+        ERROR_PRINT( _T("Can't load '%s'\n"), IniPath.c_str() );
         return false;
     }
 
@@ -33,8 +33,6 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
 
     if( ! Utils::CreateDirectories( Destination.c_str() ) )
         return false;
-
-    INFO_PRINT( _T("[Settings] Backup directory: %s\n"), Destination.c_str() );
 
     int iCount = reader.GetInteger( _T("IncludeFile"), _T("Count"), 0 );
     for( int i=1; i<=iCount; i++ )

@@ -8,6 +8,8 @@
 #include "drvcommon.h"
 #include "util.h"
 
+#define METHOD_CLOSE_HANDLE_IN_DRIVER 0
+
 // Assign text sections for each routine.
 #ifdef ALLOC_PRAGMA
     #pragma alloc_text(INIT, DriverEntry)
@@ -31,197 +33,6 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] =
       0,
       PreCreate,
       PostOperation },
-/*
-    { IRP_MJ_CREATE_NAMED_PIPE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_CLOSE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_READ,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_WRITE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_QUERY_INFORMATION,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_SET_INFORMATION,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_QUERY_EA,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_SET_EA,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_FLUSH_BUFFERS,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_QUERY_VOLUME_INFORMATION,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_SET_VOLUME_INFORMATION,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_DIRECTORY_CONTROL,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_FILE_SYSTEM_CONTROL,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_DEVICE_CONTROL,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_INTERNAL_DEVICE_CONTROL,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_SHUTDOWN,
-      0,
-      PreOperationNo,
-      NULL },                               //post operations not supported
-
-    { IRP_MJ_LOCK_CONTROL,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_CLEANUP,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_CREATE_MAILSLOT,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_QUERY_SECURITY,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_SET_SECURITY,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_QUERY_QUOTA,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_SET_QUOTA,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_PNP,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_ACQUIRE_FOR_SECTION_SYNCHRONIZATION,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_RELEASE_FOR_SECTION_SYNCHRONIZATION,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_ACQUIRE_FOR_MOD_WRITE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_RELEASE_FOR_MOD_WRITE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_ACQUIRE_FOR_CC_FLUSH,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_RELEASE_FOR_CC_FLUSH,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_FAST_IO_CHECK_IF_POSSIBLE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_NETWORK_QUERY_OPEN,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_MDL_READ,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_MDL_READ_COMPLETE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_PREPARE_MDL_WRITE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_MDL_WRITE_COMPLETE,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_VOLUME_MOUNT,
-      0,
-      PreCreate,
-      PostOperation },
-
-    { IRP_MJ_VOLUME_DISMOUNT,
-      0,
-      PreCreate,
-      PostOperation },
-*/
     { IRP_MJ_OPERATION_END }
 };
 
@@ -508,7 +319,6 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
     PCB_INSTANCE_CONTEXT pInstanceContext = NULL;
     PFILE_OBJECT pSrcFileObject = NULL;
-    PFILE_OBJECT pDstFileObject = NULL;
     HANDLE UserProcessKernel = NULL;
     PEPROCESS UserProcess = NULL;
     HANDLE TargetHandle = NULL;
@@ -517,6 +327,9 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     WCHAR strFileName[MAX_PATH_SIZE] = {0};
     char BufferUniName[MAX_PATH_SIZE] = {0};
     WCHAR* strProcessName = L"";
+#if METHOD_CLOSE_HANDLE_IN_DRIVER
+    PFILE_OBJECT pDstFileObject = NULL;
+#endif
 
     if( Data->Iopb->MajorFunction != IRP_MJ_CREATE )
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -682,15 +495,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
-    status = ObReferenceObjectByHandle( hFile, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pSrcFileObject, NULL );
-    if( ! NT_SUCCESS( status ) )
-    {
-        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", hFile, GetStatusString( status ) );
-        goto Cleanup;
-    }
-
     //Get File attributes
-    FILE_BASIC_INFORMATION basicInfo;
+	FILE_BASIC_INFORMATION basicInfo = {0};
     RtlZeroMemory( &basicInfo, sizeof(basicInfo) );
     IO_STATUS_BLOCK ioStatusQuery = {0};
     status = ZwQueryInformationFile( hFile, &ioStatusQuery, &basicInfo, sizeof(FILE_BASIC_INFORMATION), FileBasicInformation );
@@ -700,16 +506,23 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
-    if( pSrcFileObject == NULL )
+    status = ObReferenceObjectByHandle( hFile, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pSrcFileObject, NULL );
+    if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: pSrcFileObject == NULL\n" );
+        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", hFile, GetStatusString( status ) );
+        goto Cleanup;
+    }
+
+	if( pSrcFileObject == NULL )
+    {
+        ERROR_PRINT( "\nCB: ERROR: pSrcFileObject == NULL\n" );
         goto Cleanup;
     }
 
     PDEVICE_OBJECT pSrcDeviceObject = IoGetRelatedDeviceObject( pSrcFileObject );
     if( pSrcDeviceObject == NULL )
     {
-        ERROR_PRINT( "\nCB: pDeviceObject == NULL\n" );
+        ERROR_PRINT( "\nCB: ERROR: pDeviceObject == NULL\n" );
         goto Cleanup;
     }
 
@@ -721,7 +534,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
-    // Duplicate handle
+	// Duplicate handle
     HANDLE SourceHandle = hFile;
     TargetProcessHandle = UserProcessKernel;
     status = GetCurrentProcessKernelHandler( &SourceProcessHandle );
@@ -764,6 +577,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
     DEBUG_PRINT( "CB: DEBUG ZwDuplicateObject SourceProcessHandle=%p TargetProcessHandle=%p SourceHandle=%p TargetHandle=%p\n", SourceProcessHandle, TargetProcessHandle, SourceHandle, TargetHandle );
 
+#if METHOD_CLOSE_HANDLE_IN_DRIVER
 	status = ReferenceHandleInProcess( TargetHandle, UserProcess, &pDstFileObject );
     if( ! NT_SUCCESS( status ) )
     {
@@ -775,6 +589,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 	{
 		TMP_PRINT( "CB: DEBUG pDstFileObject == NULL TargetHandle=%p File: %S Process: %S\n", TargetHandle, strFileName, strProcessName );
 	}
+#endif
 
 	BOOLEAN OkToOpen = TRUE;
     status = SendHandleToUser( TargetHandle, FltObjects->Volume, &nameInfo->ParentDir, &nameInfo->FinalComponent, basicInfo.CreationTime, basicInfo.LastAccessTime, basicInfo.LastWriteTime, basicInfo.ChangeTime, basicInfo.FileAttributes, &OkToOpen );
@@ -799,15 +614,17 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
 Cleanup:
     // Considering possible CloseHandle in ceuser.exe
+#if METHOD_CLOSE_HANDLE_IN_DRIVER
     if( TargetHandle && UserProcess )
 	{
-		//TODO: Consider closing in ceuser process ...
+		//TODO: Consider closing in CEUSER process ...
 		if( status != STATUS_PORT_DISCONNECTED ) // We don't want BSOD
 			CloseHandleInProcess( TargetHandle, UserProcess );
 	}
 
     if( pDstFileObject )
 		ObDereferenceObject( pDstFileObject );
+#endif
 
 	if( pSrcFileObject )
         ObDereferenceObject( pSrcFileObject );

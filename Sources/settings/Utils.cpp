@@ -9,13 +9,29 @@ tstring MapToDestination( const tstring& Path )
     tstring strMapped = Path;
 
     size_t pos = strMapped.find( _T(':') );
-    if( pos == -1 )
+    if( pos == tstring::npos )
     {
         ERROR_PRINT( _T("ERROR: MapToDestination failed: Disk not found in the path %s\n"), Path.c_str() );
         return false;
     }
 
     strMapped = strMapped.substr( 0, pos ) + strMapped.substr( pos + 1 );
+
+    return strMapped;
+}
+
+tstring MapToOriginal( const tstring& Path )
+{
+    tstring strMapped = Path;
+
+    size_t pos = strMapped.find( _T('\\') );
+    if( pos == tstring::npos || pos != 1 )
+    {
+        ERROR_PRINT( _T("ERROR: MapToOriginal failed: Disk not found in the path %s\n"), Path.c_str() );
+        return false;
+    }
+
+    strMapped = strMapped.substr( 0, pos ) + _T(":\\") + strMapped.substr( pos + 1 );
 
     return strMapped;
 }
@@ -55,20 +71,21 @@ bool GetLastIndex( const tstring& Destination, const tstring& MappedPath, int& I
         {
             if( ! (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
             {
-                 if( _tcsstr( ffd.cFileName, pd.Name.c_str() ) != NULL )
-                 {
-                     TCHAR* point = _tcsrchr(  ffd.cFileName, _T('.') );
-                     if( point )
-                     {
-                         tstring strIndex = point + 1;
-                         if( strIndex.size() )
-                         {
-                             int iIndex = _tstoi( strIndex.c_str() );
-                             if( iIndex > Index )
-                                 Index = iIndex;
-                         }
-                     }
-                 }
+				tstring strName = ffd.cFileName;
+                if( strName.substr( 0, pd.Name.size() + 1 ) == pd.Name + _T(".") )
+                {
+                    TCHAR* point = _tcsrchr( ffd.cFileName, _T('.') );
+                    if( point )
+                    {
+                        tstring strIndex = point + 1;
+                        if( strIndex.size() )
+                        {
+                            int iIndex = _tstoi( strIndex.c_str() );
+                            if( iIndex > Index )
+                                Index = iIndex;
+                        }
+                    }
+                }
             }
         } while( ::FindNextFile( hFind, &ffd ) );
 
@@ -150,10 +167,12 @@ tstring GetLastErrorString()
         ret = _T(" ERROR_INVALID_FUNCTION");
     else if( ::GetLastError() == ERROR_FILE_EXISTS )
         ret = _T(" ERROR_FILE_EXISTS");
+    else if( ::GetLastError() == ERROR_FILE_NOT_FOUND )
+        ret = _T(" ERROR_FILE_NOT_FOUND");
     else
     {
         std::wstringstream oss;
-        oss << _T(" error=%d") << ::GetLastError();
+        oss << _T(" error=") << ::GetLastError();
         ret = oss.str();
     }
 
@@ -169,13 +188,13 @@ bool CPathDetails::Parse( bool aMapped, const tstring& Path )
     Directory = _T("");
 
     size_t pos = Path.rfind( _T('\\') ) ;
-    if( pos == -1 )
+    if( pos == tstring::npos )
         return false;
 
     Directory = Path.substr( 0, pos );
     Name = Path.substr( pos + 1 );
     pos = Name.rfind( _T('.') ) ;
-    if( pos != -1 )
+    if( pos != tstring::npos )
         Extension = Name.substr( pos + 1 );
 
     return true;

@@ -117,8 +117,7 @@
       <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\fltMgr.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y $(TargetPath) \\VmWin10\c\Max
-rem copy $(TargetPath) \\VmWin10\c\Max</Command>
+      <Command>xcopy /Y $(TargetPath) \\VmWin10\c\Max</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

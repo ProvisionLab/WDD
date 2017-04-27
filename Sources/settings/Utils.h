@@ -3,6 +3,7 @@
 namespace Utils
 {
     tstring MapToDestination( const tstring& Path );
+	tstring MapToOriginal( const tstring& Path );
     bool GetLastIndex( const tstring& Destination, const tstring& MappedPath, int& Index );
     tstring RemoveEndingSlash( const tstring& Dir );
     tstring ToLower( const tstring& str );

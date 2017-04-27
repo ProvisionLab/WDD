@@ -9,7 +9,6 @@ VOID Usage ()
 
 int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 {
-    _tprintf( _T("Starting ...\n") );
     std::wstring strIniPath = _T("cebackup.ini");
 
     if( argc > 1 )
@@ -35,7 +34,9 @@ int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
         strIniPath = argv[2];
     }
 
-    CBackupClient client;
+    _tprintf( _T("Starting ...\n") );
+
+	CBackupClient client;
 
     if( ! client.Run( strIniPath ) )
         return 1;

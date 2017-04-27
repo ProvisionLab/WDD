@@ -5,6 +5,8 @@
 #include "Settings.h"
 #include "Utils.h"
 
+#define METHOD_CLOSE_HANDLE_IN_DRIVER 0
+
 //  Default and Maximum number of threads.
 #define BACKUP_REQUEST_COUNT            5
 #define BACKUP_DEFAULT_THREAD_COUNT     2
@@ -237,6 +239,11 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
 
         result = BackupFile( notification->hFile, notification->Path, notification->FileAttributes, CreationTime, LastAccessTime, LastWriteTime );
 
+#if METHOD_CLOSE_HANDLE_IN_DRIVER
+#else
+		::CloseHandle( notification->hFile );
+#endif
+
         replyMessage.ReplyHeader.Status = 0;
         replyMessage.ReplyHeader.MessageId = message->MessageHeader.MessageId;
 
@@ -295,7 +302,10 @@ bool CBackupClient::Run( const tstring& IniPath )
 	if( ! _Settings.Init( IniPath ) )
         return false;
 
-    InitializeCriticalSection( &_guardDestFile );
+	INFO_PRINT( _T("[Settings] File: %s\n"), IniPath.c_str() );
+	INFO_PRINT( _T("[Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
+
+	InitializeCriticalSection( &_guardDestFile );
 
     //  Open a communication channel to the filter
     INFO_PRINT( _T("Connecting to the filter ...\n") );
