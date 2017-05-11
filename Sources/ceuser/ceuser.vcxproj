@@ -107,7 +107,7 @@
       <AdditionalLibraryDirectories>$(OutDir)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y $(TargetPath) \\VmWin10\c\Max</Command>
+      <Command>if exist x:\ xcopy /Y $(TargetPath) x:\Max</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

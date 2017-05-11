@@ -8,4 +8,12 @@
     <DeploymentDirectory>C:\Max</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <RemoteDebuggerCommand>C:\Max\ceuser.exe</RemoteDebuggerCommand>
+    <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
+    <RemoteDebuggerWorkingDirectory>C:\Max</RemoteDebuggerWorkingDirectory>
+    <RemoteDebuggerServerName>VmWin10</RemoteDebuggerServerName>
+    <RemoteDebuggerConnection>RemoteWithoutAuthentication</RemoteDebuggerConnection>
+    <DeploymentDirectory>C:\Max</DeploymentDirectory>
+  </PropertyGroup>
 </Project>

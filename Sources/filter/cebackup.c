@@ -613,7 +613,6 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = SendHandleToUser( TargetHandle, FltObjects->Volume, &nameInfo->ParentDir, &nameInfo->FinalComponent, basicInfo.CreationTime, basicInfo.LastAccessTime, basicInfo.LastWriteTime, basicInfo.ChangeTime, basicInfo.FileAttributes, &OkToOpen );
     if( ! NT_SUCCESS( status ))
     {
-        ERROR_PRINT( "\nCB: !!! ERROR SendHandleToUser failed status=%S\n\n", GetStatusString( status ) );
         goto Cleanup;
     }
 

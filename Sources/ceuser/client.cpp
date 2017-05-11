@@ -175,7 +175,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAtt
     tstring strLower = Utils::ToLower( Path );
     if( strLower.substr( 0, _Settings.Destination.size() ) == _Settings.Destination )
     {
-        DEBUG_PRINT( _T("DEBUG: Skipping write to Destination=%s"), Path.c_str() );
+        INFO_PRINT( _T("INFO: Skipping write to Destination=%s"), Path.c_str() );
         return true;
     }
 

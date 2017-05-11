@@ -25,7 +25,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
 
     if( Destination.length() == 0 )
     {
-        DEBUG_PRINT( _T("[Destination]Path not found in '%s'\n"), IniPath.c_str() );
+        ERROR_PRINT( _T("ERROR: [Destination]Path not found in '%s'\n"), IniPath.c_str() );
         return false;
     }
 
@@ -41,7 +41,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
 
         if( strFile.length() == 0 )
         {
-            DEBUG_PRINT( _T("[IncludeFile] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
+            ERROR_PRINT( _T("ERROR: [IncludeFile] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
             return false;
         }
 
@@ -58,7 +58,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
 
         if( strDirectory.length() == 0 )
         {
-            DEBUG_PRINT( _T("[IncludeDirectory] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
+            ERROR_PRINT( _T("ERROR: [IncludeDirectory] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
             return false;
         }
 
@@ -75,7 +75,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
 
         if( strFile.length() == 0 )
         {
-            DEBUG_PRINT( _T("[ExcludeFile] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
+            ERROR_PRINT( _T("ERROR: [ExcludeFile] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
             return false;
         }
 
@@ -92,7 +92,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath )
 
         if( strDirectory.length() == 0 )
         {
-            DEBUG_PRINT( _T("[ExcludeDirectory] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
+            ERROR_PRINT( _T("ERROR: [ExcludeDirectory] '%s' not found in '%s'\n"), oss.str().c_str(), IniPath.c_str() );
             return false;
         }
 
