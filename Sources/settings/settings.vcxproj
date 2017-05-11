@@ -135,8 +135,9 @@
       <SubSystem>Windows</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y cebackup.ini \\VmWin10\c\Max
-xcopy /Y cebackup.ini $(OutDir)</Command>
+      <Command>xcopy /Y cebackup.ini $(OutDir)
+if exist x:\ xcopy /Y cebackup.ini x:\Max
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

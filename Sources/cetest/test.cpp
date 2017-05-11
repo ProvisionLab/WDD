@@ -47,14 +47,14 @@ bool CTest::Run( const tstring& IniPath )
         goto Cleanup;
 
 	// Write to InclideFile. N files, N times, check content
-	for( int i=0; i<_Settings.IncludedFiles.size(); i++ )
+	for( size_t i=0; i<_Settings.IncludedFiles.size(); i++ )
 	{
 		if( ! CheckFile( _Settings.IncludedFiles[i], true ) )
 			return false;
 	}
 
 	// Write to IncludeDirectory
-	for( int i=0; i<_Settings.IncludedDirectories.size(); i++ )
+	for( size_t i=0; i<_Settings.IncludedDirectories.size(); i++ )
 	{
 		tstring strPath = _Settings.IncludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
 		if( ! CheckFile( strPath, true ) )
@@ -62,14 +62,14 @@ bool CTest::Run( const tstring& IniPath )
 	}
 
 	// Write to ExcludedFile
-	for( int i=0; i<_Settings.ExcludedFiles.size(); i++ )
+	for( size_t i=0; i<_Settings.ExcludedFiles.size(); i++ )
 	{
 		if( ! CheckFile( _Settings.ExcludedFiles[i], false ) )
 			return false;
 	}
 
 	// Write to ExcludedDirectory
-	for( int i=0; i<_Settings.ExcludedDirectories.size(); i++ )
+	for( size_t i=0; i<_Settings.ExcludedDirectories.size(); i++ )
 	{
 		tstring strPath = _Settings.ExcludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
 		if( ! CheckFile( strPath, false ) )

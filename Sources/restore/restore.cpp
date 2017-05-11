@@ -81,8 +81,8 @@ bool CRestore::ListFiles( const tstring& Destination, bool All, const tstring& P
 	{
 		if( arrFiles.size() )
 		{
-			INFO_PRINT( _T("Found matches(%lld):\n"), arrFiles.size() );
-			for( int i=0; i<arrFiles.size(); i++ )
+			INFO_PRINT( _T("Found matches(%d):\n"), (int)arrFiles.size() );
+			for( size_t i=0; i<arrFiles.size(); i++ )
 			{
 				INFO_PRINT( _T("%s\n"), arrFiles[i].c_str() );
 			}

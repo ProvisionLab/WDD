@@ -126,7 +126,7 @@
       <SuppressStartupBanner>false</SuppressStartupBanner>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y $(TargetPath) \\VmWin10\c\Max</Command>
+      <Command>if exist x:\ xcopy /Y $(TargetPath) x:\Max</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
