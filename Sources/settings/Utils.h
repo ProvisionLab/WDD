@@ -8,8 +8,11 @@ namespace Utils
     tstring RemoveEndingSlash( const tstring& Dir );
     tstring ToLower( const tstring& str );
     bool DoesDirectoryExists( const tstring& Directory );
-    bool CreateDirectories( const tstring& Directory );
-    tstring GetLastErrorString();
+    bool CreateDirectory( const tstring& Directory );
+	bool RemoveDirectory( const tstring& Directory );
+	tstring GetLastErrorString();
+	tstring GetErrorString( DWORD err );
+	bool ExecuteProcess( CHAR* CommadLineA, BOOL Wait = TRUE );
 
 	class CPathDetails
 	{

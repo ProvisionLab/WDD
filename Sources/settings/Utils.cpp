@@ -116,7 +116,7 @@ bool DoesDirectoryExists( const tstring& Directory )
     return ::PathFileExists( Directory.c_str() ) != 0;
 }
 
-bool CreateDirectories( const tstring& Directory )
+bool CreateDirectory( const tstring& Directory )
 {
     size_t pos = 0;
     
@@ -153,21 +153,50 @@ bool CreateDirectories( const tstring& Directory )
     return true;
 }
 
+bool RemoveDirectory( const tstring& Directory )
+{
+	TCHAR Name[MAX_PATH];
+	ZeroMemory( Name, sizeof(Name) );
+	StrCatW( Name, Directory.c_str() );
+
+	SHFILEOPSTRUCT SHFileOp = {0};
+	ZeroMemory( &SHFileOp, sizeof(SHFILEOPSTRUCT) );
+    SHFileOp.hwnd = NULL;
+    SHFileOp.wFunc = FO_DELETE;
+    SHFileOp.pFrom = Name;
+    SHFileOp.pTo = NULL;
+    SHFileOp.fFlags = FOF_NOERRORUI | FOF_NOCONFIRMATION;
+		
+	int ret = ::SHFileOperationW( &SHFileOp );
+	if( ret != 0 )
+	{
+		ERROR_PRINT( _T("ERROR: RemoveDirectory %s failed, status=%s\n"), Directory.c_str(), Utils::GetErrorString( ret ).c_str() );
+		return false;
+	}
+
+	return true;
+}
+
 tstring GetLastErrorString()
 {
+	return GetErrorString( ::GetLastError() );
+}
+
+tstring GetErrorString( DWORD err )
+{
     tstring ret;
-    if( ::GetLastError() == ERROR_ACCESS_DENIED )
-        ret = _T(" ERROR_ACCESS_DENIED");
-    else if( ::GetLastError() == ERROR_INVALID_HANDLE )
-        ret = _T(" ERROR_INVALID_HANDLE");
-    else if( ::GetLastError() == ERROR_INVALID_PARAMETER )
-        ret = _T(" ERROR_INVALID_PARAMETER");
-    else if( ::GetLastError() == ERROR_INVALID_FUNCTION )
-        ret = _T(" ERROR_INVALID_FUNCTION");
-    else if( ::GetLastError() == ERROR_FILE_EXISTS )
-        ret = _T(" ERROR_FILE_EXISTS");
-    else if( ::GetLastError() == ERROR_FILE_NOT_FOUND )
-        ret = _T(" ERROR_FILE_NOT_FOUND");
+    if( err == ERROR_ACCESS_DENIED )
+        ret = _T("ERROR_ACCESS_DENIED");
+    else if( err == ERROR_INVALID_HANDLE )
+        ret = _T("ERROR_INVALID_HANDLE");
+    else if( err == ERROR_INVALID_PARAMETER )
+        ret = _T("ERROR_INVALID_PARAMETER");
+    else if( err == ERROR_INVALID_FUNCTION )
+        ret = _T("ERROR_INVALID_FUNCTION");
+    else if( err == ERROR_FILE_EXISTS )
+        ret = _T("ERROR_FILE_EXISTS");
+    else if( err == ERROR_FILE_NOT_FOUND )
+        ret = _T("ERROR_FILE_NOT_FOUND");
     else
     {
         std::wstringstream oss;
@@ -215,6 +244,30 @@ bool CPathDetails::Parse( bool aMapped, const tstring& Path )
 	}
 
     return true;
+}
+
+bool ExecuteProcess( CHAR* CommadLineA, BOOL Wait )
+{
+	STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+	ZeroMemory( &si, sizeof(si) );
+    si.cb = sizeof(si);
+    ZeroMemory( &pi, sizeof(pi) );
+
+	if( ! ::CreateProcessA( NULL, CommadLineA, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi ) )
+	{
+		ERROR_PRINT( _T("ERROR: ExecuteProcess(%S) failed. status=%s\n"), CommadLineA, Utils::GetLastErrorString().c_str() );
+		return false;
+	}
+
+	if( Wait )
+		::WaitForSingleObject( pi.hProcess, INFINITE );
+
+    // Close process and thread handles. 
+    ::CloseHandle( pi.hProcess );
+    ::CloseHandle( pi.hThread );
+
+	return true;
 }
 
 }

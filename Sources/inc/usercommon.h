@@ -2,12 +2,14 @@
 
 #include <windows.h>
 #include <Shlwapi.h>
+#include <Shellapi.h>
 #include <fltuser.h>
 #include <string>
 #include <vector>
 #include <map>
 #include <iostream>
 #include <sstream>
+#include <ctime>
 
 #include <tchar.h>
 #ifdef UNICODE

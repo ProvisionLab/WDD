@@ -100,7 +100,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
             if( hDestFile == NULL )
             {
                 //Lets create directory only if file is not empty
-                if( ! Utils::CreateDirectories( pd.Directory ) )
+                if( ! Utils::CreateDirectory( pd.Directory ) )
                 {
                     ret = false;
                     goto Cleanup;
@@ -305,13 +305,13 @@ bool CBackupClient::Run( const tstring& IniPath )
 	INFO_PRINT( _T("[Settings] File: %s\n"), IniPath.c_str() );
 	INFO_PRINT( _T("[Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
 
-    if( ! Utils::CreateDirectories( _Settings.Destination.c_str() ) )
+    if( ! Utils::CreateDirectory( _Settings.Destination.c_str() ) )
         return false;
 
 	InitializeCriticalSection( &_guardDestFile );
 
     //  Open a communication channel to the filter
-    INFO_PRINT( _T("Connecting to the filter ...\n") );
+    INFO_PRINT( _T("INFO: Connecting to the filter ...\n") );
 
     HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &port );
     if( IS_ERROR( hr ) )
@@ -329,7 +329,7 @@ bool CBackupClient::Run( const tstring& IniPath )
         return false;
     }
 
-    DEBUG_PRINT( _T("DEBUG: Connected: Port = 0x%p Completion = 0x%p\n"), port, completion );
+    INFO_PRINT( _T("INFO: Connected: Port = 0x%p Completion = 0x%p\n"), port, completion );
 
     context.Port = port;
     context.Completion = completion;
