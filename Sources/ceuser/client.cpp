@@ -168,7 +168,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAtt
 {
     if( SrcAttribute & FILE_ATTRIBUTE_DIRECTORY )
     {
-        ERROR_PRINT( _T("ERROR: Directory attribute detected for %s\n"), Path.c_str() );
+        ERROR_PRINT( _T("WARNING: Directory attribute detected for %s. Skipping\n"), Path.c_str() );
         return true;
     }
 

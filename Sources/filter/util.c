@@ -326,7 +326,6 @@ NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS peProcess )
 	{
 		//Process has exit already?
 		ERROR_PRINT( "\nCB: !!! ERROR CloseHandleInProcess: KeStackAttachProcess failed to switch to process: %p\n\n", peProcess );
-		DbgBreakPoint();
 	}
 
     KeUnstackDetachProcess( &kApcSt );
