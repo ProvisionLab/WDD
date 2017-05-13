@@ -70,7 +70,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = FltGetFileNameInformation( Data, FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_DEFAULT, &nameInfo );
     if( ! NT_SUCCESS( status ) )
     {
-        DEBUG_PRINT( "\n!!! ERROR FltGetFileNameInformation failed. Status=%S\n\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        DEBUG_PRINT( "\n!!! ERROR FltGetFileNameInformation failed. Status=%S\n\n", GetStatusString( status, Buffer ) );
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -83,11 +84,30 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = FltParseFileNameInformation( nameInfo );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\n!!! ERROR FltParseFileNameInformation failed. Status=%S\n\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\n!!! ERROR FltParseFileNameInformation failed. Status=%S\n\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
-    RtlStringCbCopyW( strFileName, sizeof(strFileName), nameInfo->FinalComponent.Buffer );
+	if( nameInfo == NULL )
+    {
+        ERROR_PRINT( "\n!!! ERROR FltParseFileNameInformation: nameInfo == NULL\n\n" );
+        goto Cleanup;
+    }
+
+	if( nameInfo->FinalComponent.Buffer == NULL )
+    {
+        ERROR_PRINT( "\n!!! WARNING FltParseFileNameInformation: nameInfo->FinalComponent.Buffer == NULL\n\n" );
+        goto Cleanup;
+    }
+
+	if( nameInfo->FinalComponent.Length == 0 )
+    {
+        ERROR_PRINT( "\n!!! WARNING FltParseFileNameInformation: nameInfo->FinalComponent.Length == 0\n\n" );
+        goto Cleanup;
+    }
+
+	RtlStringCbCopyW( strFileName, sizeof(strFileName), nameInfo->FinalComponent.Buffer );
 
 // TMP: FILTER OUT ONLY WRITE TO File 777.txt
 /*
@@ -101,7 +121,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 	status = ZwQueryInformationProcess( NtCurrentProcess(), ProcessImageFileName, BufferUniName, MAX_PATH_SIZE, &dwRetLen );
     if( ! NT_SUCCESS(status) || ! dwRetLen )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ZwQueryInformationProcess ProcessImageFileName failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR ZwQueryInformationProcess ProcessImageFileName failed. status=%S\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
@@ -149,7 +170,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = FltGetInstanceContext( FltObjects->Instance, &pInstanceContext );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR FltGetInstanceContext failed status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR FltGetInstanceContext failed status=%S\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
@@ -172,13 +194,14 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
     if( ! NT_SUCCESS( status ) )
     {
+        WCHAR Buffer[MAX_PATH_SIZE];
         if( status == STATUS_SHARING_VIOLATION || status == STATUS_OBJECT_NAME_NOT_FOUND )
         {
-            DEBUG_PRINT( "CB: DEBUG FltCreateFile %wZ failed status=%S\n", nameInfo->Name, GetStatusString( status ) );
+            DEBUG_PRINT( "CB: DEBUG FltCreateFile %wZ failed status=%S\n", nameInfo->Name, GetStatusString( status, Buffer ) );
         }
         else
         {
-            ERROR_PRINT( "\nCB: !!! ERROR FltCreateFile %wZ failed status=%S\n", nameInfo->Name, GetStatusString( status ) );
+            ERROR_PRINT( "\nCB: !!! ERROR FltCreateFile %wZ failed status=%S\n", nameInfo->Name, GetStatusString( status, Buffer ) );
         }
         goto Cleanup;
     }
@@ -208,7 +231,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = ZwQueryInformationFile( hFile, &ioStatusQuery, &basicInfo, sizeof(FILE_BASIC_INFORMATION), FileBasicInformation );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ZwQueryInformationFile failed status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR ZwQueryInformationFile failed status=%S\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
@@ -221,7 +245,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = ObReferenceObjectByHandle( hFile, KEY_ALL_ACCESS, *IoFileObjectType, KernelMode, &pSrcFileObject, NULL );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", hFile, GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR ObReferenceObjectByHandle(%p) failed status=%S\n", hFile, GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
@@ -238,7 +263,11 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
         goto Cleanup;
     }
 
-    DEBUG_PRINT( "CB: DEBUG: File: file.Flag=%S device.Flags=%S file.CompletionContext=%p device.AlignmentRequirement=%d\n", GetFileFlagString( pSrcFileObject->Flags ), GetDeviceFlagString( pSrcDeviceObject->Flags ), pSrcFileObject->CompletionContext, pSrcDeviceObject->AlignmentRequirement );
+    {
+        WCHAR Buffer[MAX_PATH_SIZE];
+        WCHAR Buffer2[MAX_PATH_SIZE];
+        DEBUG_PRINT( "CB: DEBUG: File: file.Flag=%S device.Flags=%S file.CompletionContext=%p device.AlignmentRequirement=%d\n", GetFileFlagString( pSrcFileObject->Flags, Buffer2 ), GetDeviceFlagString( pSrcDeviceObject->Flags, Buffer ), pSrcFileObject->CompletionContext, pSrcDeviceObject->AlignmentRequirement );
+    }
 
     if( ! FlagOn( pSrcFileObject->Flags, FO_SYNCHRONOUS_IO ) )
     {
@@ -277,7 +306,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     status = ZwDuplicateObject( SourceProcessHandle, SourceHandle, TargetProcessHandle, &TargetHandle, 0, 0, DUPLICATE_SAME_ACCESS | DUPLICATE_SAME_ATTRIBUTES );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ZwDuplicateObject failed status=%S. SourceProcessHandle=%p SourceHandle=%p TargetProcessHandle=%p\n", GetStatusString( status ), SourceProcessHandle, SourceHandle, TargetProcessHandle );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR ZwDuplicateObject failed status=%S. SourceProcessHandle=%p SourceHandle=%p TargetProcessHandle=%p\n", GetStatusString( status, Buffer ), SourceProcessHandle, SourceHandle, TargetProcessHandle );
         goto Cleanup;
     }
 
@@ -293,7 +323,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 	status = ReferenceHandleInProcess( TargetHandle, BackupProcess, &pDstFileObject );
     if( ! NT_SUCCESS( status ) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ReferenceHandleInProcess(%p) failed status=%S\n", TargetHandle, GetStatusString( status ) );
+        ERROR_PRINT( "\nCB: !!! ERROR ReferenceHandleInProcess(%p) failed status=%S\n", TargetHandle, GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 

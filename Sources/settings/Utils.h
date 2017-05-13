@@ -12,7 +12,7 @@ namespace Utils
 	bool RemoveDirectory( const tstring& Directory );
 	tstring GetLastErrorString();
 	tstring GetErrorString( DWORD err );
-	bool ExecuteProcess( CHAR* CommadLineA, BOOL Wait = TRUE );
+	bool ExecuteProcess( const char* CommadLineA, BOOL Wait = TRUE );
 
 	class CPathDetails
 	{

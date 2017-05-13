@@ -6,15 +6,13 @@
 #define CHECK_STATUS(s) \
 if( ! NT_SUCCESS( (s) ) ) \
 { \
-    DbgPrint( "\n!CB ERROR:" ); \
+    DbgPrint( "\n!!! CB ERROR:" ); \
     DbgPrint( #s ); \
     return; \
 }
 
 VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAccess, USHORT ShareAccess, ULONG Flags )
 {
-    //DbgPrint( "!CB PreCreate Name=%wZ\n", NameInfo->FinalComponent );
-
     DECLARE_UNICODE_STRING_SIZE( FinalBuffer, MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( DaBuffer, MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( SaBuffer, MAX_PATH_SIZE );
@@ -88,164 +86,156 @@ VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAcce
 
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &DaBuffer ) );
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &SaBuffer ) );
-    CHECK_STATUS( RtlUnicodeStringCatString( &FinalBuffer, GetFileFlagString(Flags) ) );
+    WCHAR Buffer[MAX_PATH_SIZE];
+    CHECK_STATUS( RtlUnicodeStringCatString( &FinalBuffer, GetFileFlagString( Flags, Buffer ) ) );
 
     DEBUG_PRINT( "%wZ", FinalBuffer );
 }
 
-static WCHAR g_StatusString[MAX_PATH_SIZE];
-
-const WCHAR* GetStatusString( NTSTATUS Status )
+const WCHAR* GetStatusString( NTSTATUS Status, WCHAR* Buffer )
 {
     if( Status == STATUS_OBJECT_NAME_INVALID )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_OBJECT_NAME_INVALID" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_OBJECT_NAME_INVALID" );
     else if( Status == STATUS_OBJECT_PATH_NOT_FOUND )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_OBJECT_PATH_NOT_FOUND" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_OBJECT_PATH_NOT_FOUND" );
     else if( Status == STATUS_INVALID_PARAMETER )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_INVALID_PARAMETER" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_INVALID_PARAMETER" );
     else if( Status == STATUS_ACCESS_DENIED )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_ACCESS_DENIED" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_ACCESS_DENIED" );
     else if( Status == STATUS_INVALID_HANDLE )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_INVALID_HANDLE" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_INVALID_HANDLE" );
     else if( Status == STATUS_FLT_INVALID_NAME_REQUEST )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_FLT_INVALID_NAME_REQUEST" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_FLT_INVALID_NAME_REQUEST" );
     else if( Status == STATUS_SHARING_VIOLATION )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_SHARING_VIOLATION" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_SHARING_VIOLATION" );
     else if( Status == STATUS_OBJECT_NAME_NOT_FOUND )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_OBJECT_NAME_NOT_FOUND" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_OBJECT_NAME_NOT_FOUND" );
     else if( Status == STATUS_PORT_DISCONNECTED )
-        RtlStringCbCopyW( g_StatusString, sizeof(g_StatusString), L"STATUS_PORT_DISCONNECTED" );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_PORT_DISCONNECTED" );
     else
-        RtlStringCbPrintfW( g_StatusString, sizeof(g_StatusString), L"%X", Status );
+        RtlStringCbPrintfW( Buffer, MAX_PATH_SIZE, L"%X", Status );
 
-    return g_StatusString;
+    return Buffer;
 }
 
-static WCHAR g_FileFlagString[MAX_PATH_SIZE];
-
-const WCHAR* GetFileFlagString( ULONG Flags )
+const WCHAR* GetFileFlagString( ULONG Flags, WCHAR* Buffer )
 {
-    RtlStringCbPrintfW( g_FileFlagString, sizeof(g_FileFlagString), L"0x%X(", Flags ) ;
+    RtlStringCbPrintfW( Buffer, MAX_PATH_SIZE, L"0x%X(", Flags ) ;
 
     if( Flags & FO_FILE_OPEN )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_FILE_OPEN " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_FILE_OPEN " );
     if( Flags & FO_SYNCHRONOUS_IO )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_SYNCHRONOUS_IO " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_SYNCHRONOUS_IO " );
     if( Flags & FO_ALERTABLE_IO )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_ALERTABLE_IO " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_ALERTABLE_IO " );
     if( Flags & FO_NO_INTERMEDIATE_BUFFERING )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_NO_INTERMEDIATE_BUFFERING " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_NO_INTERMEDIATE_BUFFERING " );
     if( Flags & FO_WRITE_THROUGH )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_WRITE_THROUGH " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_WRITE_THROUGH " );
     if( Flags & FO_SEQUENTIAL_ONLY )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_SEQUENTIAL_ONLY " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_SEQUENTIAL_ONLY " );
     if( Flags & FO_CACHE_SUPPORTED )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_CACHE_SUPPORTED " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_CACHE_SUPPORTED " );
     if( Flags & FO_NAMED_PIPE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_NAMED_PIPE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_NAMED_PIPE " );
     if( Flags & FO_STREAM_FILE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_STREAM_FILE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_STREAM_FILE " );
     if( Flags & FO_MAILSLOT )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_MAILSLOT " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_MAILSLOT " );
     if( Flags & FO_GENERATE_AUDIT_ON_CLOSE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_GENERATE_AUDIT_ON_CLOSE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_GENERATE_AUDIT_ON_CLOSE " );
     if( Flags & FO_DIRECT_DEVICE_OPEN )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_DIRECT_DEVICE_OPEN " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_DIRECT_DEVICE_OPEN " );
     if( Flags & FO_FILE_MODIFIED )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_FILE_MODIFIED " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_FILE_MODIFIED " );
     if( Flags & FO_FILE_SIZE_CHANGED )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_FILE_SIZE_CHANGED " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_FILE_SIZE_CHANGED " );
     if( Flags & FO_CLEANUP_COMPLETE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_CLEANUP_COMPLETE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_CLEANUP_COMPLETE " );
     if( Flags & FO_TEMPORARY_FILE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_TEMPORARY_FILE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_TEMPORARY_FILE " );
     if( Flags & FO_DELETE_ON_CLOSE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_DELETE_ON_CLOSE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_DELETE_ON_CLOSE " );
     if( Flags & FO_OPENED_CASE_SENSITIVE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_OPENED_CASE_SENSITIVE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_OPENED_CASE_SENSITIVE " );
     if( Flags & FO_HANDLE_CREATED )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_HANDLE_CREATED " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_HANDLE_CREATED " );
     if( Flags & FO_FILE_FAST_IO_READ )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_FILE_FAST_IO_READ " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_FILE_FAST_IO_READ " );
     if( Flags & FO_RANDOM_ACCESS )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_RANDOM_ACCESS " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_RANDOM_ACCESS " );
     if( Flags & FO_FILE_OPEN_CANCELLED )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_FILE_OPEN_CANCELLED " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_FILE_OPEN_CANCELLED " );
     if( Flags & FO_VOLUME_OPEN )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_VOLUME_OPEN " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_VOLUME_OPEN " );
     if( Flags & FO_REMOTE_ORIGIN )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_REMOTE_ORIGIN " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_REMOTE_ORIGIN " );
     if( Flags & FO_DISALLOW_EXCLUSIVE )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_DISALLOW_EXCLUSIVE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_DISALLOW_EXCLUSIVE " );
     if( Flags & FO_SKIP_SET_EVENT )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_SKIP_SET_EVENT " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_SKIP_SET_EVENT " );
     if( Flags & FO_SKIP_SET_FAST_IO )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_SKIP_SET_FAST_IO " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_SKIP_SET_FAST_IO " );
     if( Flags & FO_INDIRECT_WAIT_OBJECT )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_INDIRECT_WAIT_OBJECT " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_INDIRECT_WAIT_OBJECT " );
     if( Flags & FO_SECTION_MINSTORE_TREATMENT )
-        RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L"FO_SECTION_MINSTORE_TREATMENT " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"FO_SECTION_MINSTORE_TREATMENT " );
 
-    RtlStringCbCatW( g_FileFlagString, sizeof(g_FileFlagString), L")" );
+    RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L")" );
 
-    return g_FileFlagString;
+    return Buffer;
 }
 
-
-static WCHAR g_DeviceFlagString[MAX_PATH_SIZE];
-
-const WCHAR* GetDeviceFlagString( ULONG Flags )
+const WCHAR* GetDeviceFlagString( ULONG Flags, WCHAR* Buffer )
 {
-    RtlStringCbPrintfW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"0x%X(", Flags ) ;
+    RtlStringCbPrintfW( Buffer, MAX_PATH_SIZE, L"0x%X(", Flags ) ;
 
     if( Flags & DO_VERIFY_VOLUME )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_VERIFY_VOLUME " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_VERIFY_VOLUME " );
     if( Flags & DO_BUFFERED_IO )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"ZZ DO_BUFFERED_IO " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"ZZ DO_BUFFERED_IO " );
     if( Flags & DO_EXCLUSIVE )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_EXCLUSIVE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_EXCLUSIVE " );
     if( Flags & DO_DIRECT_IO )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_DIRECT_IO " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_DIRECT_IO " );
     if( Flags & DO_MAP_IO_BUFFER )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_MAP_IO_BUFFER " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_MAP_IO_BUFFER " );
     if( Flags & DO_DEVICE_INITIALIZING )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_DEVICE_INITIALIZING " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_DEVICE_INITIALIZING " );
     if( Flags & DO_SHUTDOWN_REGISTERED )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_SHUTDOWN_REGISTERED " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_SHUTDOWN_REGISTERED " );
     if( Flags & DO_BUS_ENUMERATED_DEVICE )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_BUS_ENUMERATED_DEVICE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_BUS_ENUMERATED_DEVICE " );
     if( Flags & DO_POWER_PAGABLE )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_POWER_PAGABLE " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_POWER_PAGABLE " );
     if( Flags & DO_POWER_INRUSH )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_POWER_INRUSH " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_POWER_INRUSH " );
     if( Flags & DO_DEVICE_TO_BE_RESET )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_DEVICE_TO_BE_RESET " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_DEVICE_TO_BE_RESET " );
     if( Flags & DO_DAX_VOLUME )
-        RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L"DO_DAX_VOLUME " );
+        RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L"DO_DAX_VOLUME " );
 
-    RtlStringCbCatW( g_DeviceFlagString, sizeof(g_DeviceFlagString), L")" );
+    RtlStringCbCatW( Buffer, MAX_PATH_SIZE, L")" );
 
-    return g_DeviceFlagString;
+    return Buffer;
 }
 
-static WCHAR g_PreopCallbackStatusString[MAX_PATH_SIZE];
-
-const WCHAR* GetPreopCallbackStatusString( FLT_PREOP_CALLBACK_STATUS PreopStatus )
+const WCHAR* GetPreopCallbackStatusString( FLT_PREOP_CALLBACK_STATUS PreopStatus, WCHAR* Buffer )
 {
     if( PreopStatus == FLT_PREOP_SUCCESS_WITH_CALLBACK )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, sizeof(g_PreopCallbackStatusString), L"FLT_PREOP_SUCCESS_WITH_CALLBACK " );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"FLT_PREOP_SUCCESS_WITH_CALLBACK " );
     else if( PreopStatus == FLT_PREOP_SUCCESS_NO_CALLBACK )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, sizeof(g_PreopCallbackStatusString), L"FLT_PREOP_SUCCESS_NO_CALLBACK " );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"FLT_PREOP_SUCCESS_NO_CALLBACK " );
     else if( PreopStatus == FLT_PREOP_PENDING )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, sizeof(g_PreopCallbackStatusString), L"FLT_PREOP_PENDING " );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"FLT_PREOP_PENDING " );
     else if( PreopStatus == FLT_PREOP_DISALLOW_FASTIO )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, sizeof(g_PreopCallbackStatusString), L"FLT_PREOP_DISALLOW_FASTIO " );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"FLT_PREOP_DISALLOW_FASTIO " );
     else if( PreopStatus == FLT_PREOP_COMPLETE )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, sizeof(g_PreopCallbackStatusString), L"FLT_PREOP_COMPLETE " );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"FLT_PREOP_COMPLETE " );
     else if( PreopStatus == FLT_PREOP_SYNCHRONIZE )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, sizeof(g_PreopCallbackStatusString), L"FLT_PREOP_SYNCHRONIZE " );
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"FLT_PREOP_SYNCHRONIZE " );
 
-    return g_PreopCallbackStatusString;
+    return Buffer;
 }
 
 NTSTATUS GetCurrentProcessKernelHandler( HANDLE* phProcess )
@@ -276,7 +266,8 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
     NTSTATUS status = ZwOpenProcess( phProcess, PROCESS_DUP_HANDLE, &objAttribs, &clientId );
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! ZwOpenProcess failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ZwOpenProcess failed. status=%S\n", GetStatusString( status, Buffer ) );
         return status;
     }
 
@@ -289,7 +280,8 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
     NTSTATUS status = ObReferenceObjectByHandle( hSrc, 0, NULL, KernelMode, &pObject, NULL);
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! UserHandleToKernelHandle: ObReferenceObjectByHandle failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! UserHandleToKernelHandle: ObReferenceObjectByHandle failed. status=%S\n", GetStatusString( status, Buffer ) );
         return status;
     }
 
@@ -297,7 +289,8 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess )
 	status = ObOpenObjectByPointer( pObject, OBJ_KERNEL_HANDLE, 0, nDesiredAccess, NULL, KernelMode, phDest );
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! UserHandleToKernelHandle: ObOpenObjectByPointer failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! UserHandleToKernelHandle: ObOpenObjectByPointer failed. status=%S\n", GetStatusString( status, Buffer ) );
         return status;
     }
 

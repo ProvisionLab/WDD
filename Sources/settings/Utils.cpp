@@ -197,6 +197,8 @@ tstring GetErrorString( DWORD err )
         ret = _T("ERROR_FILE_EXISTS");
     else if( err == ERROR_FILE_NOT_FOUND )
         ret = _T("ERROR_FILE_NOT_FOUND");
+    else if( err == ERROR_PATH_NOT_FOUND )
+        ret = _T("ERROR_PATH_NOT_FOUND");
     else
     {
         std::wstringstream oss;
@@ -246,7 +248,7 @@ bool CPathDetails::Parse( bool aMapped, const tstring& Path )
     return true;
 }
 
-bool ExecuteProcess( CHAR* CommadLineA, BOOL Wait )
+bool ExecuteProcess( const char* CommadLineA, BOOL Wait )
 {
 	STARTUPINFOA si;
     PROCESS_INFORMATION pi;
@@ -254,7 +256,7 @@ bool ExecuteProcess( CHAR* CommadLineA, BOOL Wait )
     si.cb = sizeof(si);
     ZeroMemory( &pi, sizeof(pi) );
 
-	if( ! ::CreateProcessA( NULL, CommadLineA, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi ) )
+	if( ! ::CreateProcessA( NULL, (LPSTR)CommadLineA, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi ) )
 	{
 		ERROR_PRINT( _T("ERROR: ExecuteProcess(%S) failed. status=%s\n"), CommadLineA, Utils::GetLastErrorString().c_str() );
 		return false;

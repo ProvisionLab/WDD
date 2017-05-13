@@ -34,13 +34,13 @@ int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
         strIniPath = argv[2];
     }
 
-    _tprintf( _T("Starting ...\n") );
+    _tprintf( _T("CEUSER Starting\n") );
 
 	CBackupClient client;
 
     if( ! client.Run( strIniPath ) )
         return 1;
 
-    _tprintf( _T("Exiting ...") );
+    _tprintf( _T("CEUSER Exit") );
     return 0;
 }

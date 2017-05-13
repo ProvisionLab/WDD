@@ -117,7 +117,10 @@
       <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\fltMgr.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>if exist x:\ xcopy /Y $(TargetPath) x:\Max</Command>
+      <Command>if exist x:\ (
+xcopy /Y $(TargetPath) x:\Max
+echo VM_COPY $(TargetPath)
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

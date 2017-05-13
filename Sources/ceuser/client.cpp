@@ -19,7 +19,7 @@ bool CBackupClient::IsIncluded( const tstring& Path )
 
     if( ! pd.Parse( false, Path ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), Path.c_str() );
+        ERROR_PRINT( _T("CEUSER: ERROR: Failed to parse %s\n"), Path.c_str() );
         return false;
     }
 
@@ -69,7 +69,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
     Utils::CPathDetails pd;
     if( ! pd.Parse( false, strDestPath ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), strDestPath.c_str() );
+        ERROR_PRINT( _T("CEUSER: ERROR: Failed to parse %s\n"), strDestPath.c_str() );
         return false;
     }
 
@@ -90,7 +90,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         if( ! bRead )
         {
             //::CreateFile( L"C:\\XXXXX.txt", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-            ERROR_PRINT( _T("ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
+            ERROR_PRINT( _T("CEUSER: ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
             ret = false;
             goto Cleanup;
         }
@@ -109,7 +109,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
                 hDestFile = ::CreateFile( strDestPath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL );
                 if( hDestFile == INVALID_HANDLE_VALUE )
                 {
-                    ERROR_PRINT( _T("ERROR: Backup: Failed to open destination file %s, error=0x%X\n"), strDestPath.c_str(), ::GetLastError() );
+                    ERROR_PRINT( _T("CEUSER: ERROR: Backup: Failed to open destination file %s, error=0x%X\n"), strDestPath.c_str(), ::GetLastError() );
                     ret = false;
                     goto Cleanup;
                 }
@@ -119,7 +119,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
             BOOL bWrite = ::WriteFile( hDestFile, Buffer, dwRead, &dwWritten, NULL );
             if( ! bWrite )
             {
-                ERROR_PRINT( _T("ERROR: WriteFile %s failed, error=0x%X\n"), SrcPath.c_str(), ::GetLastError() );
+                ERROR_PRINT( _T("CEUSER: ERROR: WriteFile %s failed, error=0x%X\n"), SrcPath.c_str(), ::GetLastError() );
                 ret = false;
                 goto Cleanup;
             }
@@ -132,7 +132,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
 
     if( hDestFile && ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("ERROR: SetFileTime( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
+        ERROR_PRINT( _T("CEUSER: ERROR: SetFileTime( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
         ret = false;
         goto Cleanup;
     }
@@ -140,23 +140,23 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
     //Copy attributes
     if( hDestFile && ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
     {
-        ERROR_PRINT( _T("ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
+        ERROR_PRINT( _T("CEUSER: ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
         ret = false;
         goto Cleanup;
     }
 
     ret = true;
-    INFO_PRINT( _T("INFO Backup done OK: %s, index=%d\n"), SrcPath.c_str(), iIndex );
+    INFO_PRINT( _T("CEUSER: INFO Backup done OK: %s, index=%d\n"), SrcPath.c_str(), iIndex );
 
 Cleanup:
     if( hDestFile != NULL && hDestFile != INVALID_HANDLE_VALUE )
     {
         if( ! ::CloseHandle( hDestFile ) )
-            ERROR_PRINT( _T("ERROR: CloseHandle hDestFile failed, hDestFile=%p"), hDestFile );
+            ERROR_PRINT( _T("CEUSER: ERROR: CloseHandle hDestFile failed, hDestFile=%p"), hDestFile );
     }
     else if( hDestFile == NULL )
     {
-        INFO_PRINT( _T("DEBUG: Skipping empty file %s\n"), SrcPath.c_str() );
+        INFO_PRINT( _T("CEUSER: DEBUG: Skipping empty file %s\n"), SrcPath.c_str() );
     }
 
     LeaveCriticalSection( &_guardDestFile );
@@ -168,14 +168,14 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAtt
 {
     if( SrcAttribute & FILE_ATTRIBUTE_DIRECTORY )
     {
-        ERROR_PRINT( _T("WARNING: Directory attribute detected for %s. Skipping\n"), Path.c_str() );
+        ERROR_PRINT( _T("CEUSER: WARNING: Directory attribute detected for %s. Skipping\n"), Path.c_str() );
         return true;
     }
 
     tstring strLower = Utils::ToLower( Path );
     if( strLower.substr( 0, _Settings.Destination.size() ) == _Settings.Destination )
     {
-        INFO_PRINT( _T("INFO: Skipping write to Destination=%s"), Path.c_str() );
+        INFO_PRINT( _T("CEUSER: INFO: Skipping write to Destination=%s"), Path.c_str() );
         return true;
     }
 
@@ -185,7 +185,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAtt
     }
     else
     {
-        DEBUG_PRINT( _T("DEBUG: Skipping NOT Included file=%s"), Path.c_str() );
+        DEBUG_PRINT( _T("CEUSER: DEBUG: Skipping NOT Included file=%s"), Path.c_str() );
         return true;
     }
 
@@ -227,7 +227,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         }
 
         notification = &message->Notification;
-        DEBUG_PRINT( _T("DEBUG: File write notification: Path=%s HANDLE=0x%p\n"), notification->Path, notification->hFile );
+        DEBUG_PRINT( _T("CEUSER: DEBUG: File write notification: Path=%s HANDLE=0x%p\n"), notification->Path, notification->hFile );
 
         FILETIME CreationTime, LastAccessTime, LastWriteTime;
         CreationTime.dwLowDateTime = notification->CreationTime.LowPart;
@@ -256,7 +256,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         }
         else
         {
-            ERROR_PRINT( _T("ERROR: Error replying message. Error = 0x%X\n"), hr );
+            ERROR_PRINT( _T("CEUSER: ERROR: Error replying message. Error = 0x%X\n"), hr );
             break;
         }
 
@@ -274,11 +274,11 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         if( hr == HRESULT_FROM_WIN32( ERROR_INVALID_HANDLE ) )
         {
             // CeedoBackup port disconnected.
-            INFO_PRINT( _T("INFO: Port is disconnected, probably due to scanner filter unloading.\n") );
+            INFO_PRINT( _T("CEUSER: INFO: Port is disconnected, probably due to scanner filter unloading.\n") );
         }
         else
         {
-            ERROR_PRINT( _T("ERROR: Unknown error occurred. Error = 0x%X\n"), hr );
+            ERROR_PRINT( _T("CEUSER: ERROR: Port Get: Unknown error occurred. Error = 0x%X\n"), hr );
         }
     }
 
@@ -295,15 +295,15 @@ bool CBackupClient::Run( const tstring& IniPath )
 
     if( IsRunning() )
     {
-        ERROR_PRINT( _T("One instance of application is already running") );
+        ERROR_PRINT( _T("CEUSER: One instance of application is already running\n") );
         return false;
     }
 
 	if( ! _Settings.Init( IniPath ) )
         return false;
 
-	INFO_PRINT( _T("[Settings] File: %s\n"), IniPath.c_str() );
-	INFO_PRINT( _T("[Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
+	INFO_PRINT( _T("CEUSER: [Settings] File: %s\n"), IniPath.c_str() );
+	INFO_PRINT( _T("CEUSER: [Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
 
     if( ! Utils::CreateDirectory( _Settings.Destination.c_str() ) )
         return false;
@@ -311,12 +311,12 @@ bool CBackupClient::Run( const tstring& IniPath )
 	InitializeCriticalSection( &_guardDestFile );
 
     //  Open a communication channel to the filter
-    INFO_PRINT( _T("INFO: Connecting to the filter ...\n") );
+    INFO_PRINT( _T("CEUSER: INFO: Connecting to the filter ...\n") );
 
     HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &port );
     if( IS_ERROR( hr ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed connect to filter port: 0x%08x\n"), hr );
+        ERROR_PRINT( _T("CEUSER: ERROR: Failed connect to filter port: 0x%08x\n"), hr );
         return false;
     }
 
@@ -324,12 +324,12 @@ bool CBackupClient::Run( const tstring& IniPath )
     completion = ::CreateIoCompletionPort( port, NULL, 0, threadCount );
     if( ! completion )
     {
-        ERROR_PRINT( _T("ERROR: Creating completion port: %d\n"), GetLastError() );
+        ERROR_PRINT( _T("CEUSER: ERROR: Creating completion port: %d\n"), GetLastError() );
         CloseHandle( port );
         return false;
     }
 
-    INFO_PRINT( _T("INFO: Connected: Port = 0x%p Completion = 0x%p\n"), port, completion );
+    INFO_PRINT( _T("CEUSER: INFO: Connected: Port = 0x%p Completion = 0x%p\n"), port, completion );
 
     context.Port = port;
     context.Completion = completion;
@@ -345,7 +345,7 @@ bool CBackupClient::Run( const tstring& IniPath )
         {
             //  Couldn't create thread.
             hr = ::GetLastError();
-            ERROR_PRINT( _T("ERROR: Couldn't create thread: %d\n"), hr );
+            ERROR_PRINT( _T("CEUSER: ERROR: Couldn't create thread: %d\n"), hr );
             goto Cleanup;
         }
 

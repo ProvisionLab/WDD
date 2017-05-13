@@ -13,7 +13,7 @@ bool CRestore::Run( const tstring& IniPath, const tstring& Command, const tstrin
 {
     if( IsRunning() )
     {
-        ERROR_PRINT( _T("One instance of application is already running") );
+        ERROR_PRINT( _T("RESTORE: One instance of application is already running\n") );
         return false;
     }
 
@@ -121,7 +121,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 			DWORD status = ::GetLastError();
 			if( status != ERROR_FILE_NOT_FOUND )
 			{
-				ERROR_PRINT( _T("ERROR: FindFirstFile failed in %s, error=%s\n"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
+				ERROR_PRINT( _T("RESTORE: ERROR: FindFirstFile failed in %s, error=%s\n"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
 				return false;
 			}
 			else
@@ -161,21 +161,21 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
 {
 	if( Path.rfind( _T('.') ) == tstring::npos )
 	{
-        ERROR_PRINT( _T("ERROR: Path without index was provided: %s\n"), Path.c_str() );
+        ERROR_PRINT( _T("RESTORE: ERROR: Path without index was provided: %s\n"), Path.c_str() );
         return false;
 	}
 
 	Utils::CPathDetails pd;
 	if( ! pd.Parse( true, Path ) )
 	{
-        ERROR_PRINT( _T("ERROR: Failed parse provided path: %s\n"), Path.c_str() );
+        ERROR_PRINT( _T("RESTORE: ERROR: Failed parse provided path: %s\n"), Path.c_str() );
         return false;
 	}
 
 	int iIndex = _tstoi( pd.Index.c_str() );
 	if( iIndex <= 0 )
 	{
-        ERROR_PRINT( _T("ERROR: No Index was found in provided path: %s\n"), Path.c_str() );
+        ERROR_PRINT( _T("RESTORE: ERROR: No Index was found in provided path: %s\n"), Path.c_str() );
         return false;
 	}
 
@@ -183,7 +183,7 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
     HRESULT hr = ::FilterConnectCommunicationPort( RESTORE_PORT_NAME, 0, NULL, 0, NULL, &hPort );
     if( IS_ERROR( hr ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed connect to RESTORE filter port: 0x%08x\n"), hr );
+        ERROR_PRINT( _T("RESTORE: ERROR: Failed connect to RESTORE filter port: 0x%08x\n"), hr );
         return false;
     }
 
@@ -200,13 +200,13 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
 		strDestPath = pd.Directory + _T("\\") + pd.Name;
 	}
 
-	INFO_PRINT( _T("INFO: Copying %s to %s\n"), strSrcPath.c_str(), strDestPath.c_str() );
+	INFO_PRINT( _T("RESTORE: INFO: Copying %s to %s\n"), strSrcPath.c_str(), strDestPath.c_str() );
 	if( ! ::CopyFile( strSrcPath.c_str(), strDestPath.c_str(), FALSE ) )
     {
 		if( RestoreToDir.size() )
-			ERROR_PRINT( _T("ERROR: Failed to restore file '%s' to restore_to directory '%s'. Error: %s\n"), strDestPath.c_str(), RestoreToDir.c_str(), Utils::GetLastErrorString().c_str() );
+			ERROR_PRINT( _T("RESTORE: ERROR: Failed to restore file '%s' to _restore_to_ directory '%s'. Error: %s\n"), strDestPath.c_str(), RestoreToDir.c_str(), Utils::GetLastErrorString().c_str() );
 		else
-			ERROR_PRINT( _T("ERROR: Failed to restore file '%s'. Error: %s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+			ERROR_PRINT( _T("RESTORE: ERROR: Failed to restore file '%s'. Error: %s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
         goto Cleanup;
     }
 

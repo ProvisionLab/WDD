@@ -18,8 +18,8 @@
     #pragma alloc_text(PAGE, CbInstanceSetup)
     #pragma alloc_text(PAGE, CbInstanceTeardownStart)
     #pragma alloc_text(PAGE, CbInstanceTeardownComplete)
-//    #pragma alloc_text(PAGE, BackupPortConnect)
-//    #pragma alloc_text(PAGE, BackupPortDisconnect)
+    #pragma alloc_text(PAGE, BackupPortConnect)
+    #pragma alloc_text(PAGE, BackupPortDisconnect)
 #endif
 
 #pragma data_seg("NONPAGE")
@@ -126,7 +126,8 @@ NTSTATUS CbInstanceSetup ( _In_ PCFLT_RELATED_OBJECTS FltObjects, _In_ FLT_INSTA
     status = FltAllocateContext( FltObjects->Filter, FLT_INSTANCE_CONTEXT, CB_INSTANCE_CONTEXT_SIZE, NonPagedPool, &instanceContext );
     if( ! NT_SUCCESS( status ))
     {
-        ERROR_PRINT( "\nCB: !!! ERROR CbInstanceSetup: FltAllocateContext failed status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR CbInstanceSetup: FltAllocateContext failed status=%S\n", GetStatusString( status, Buffer ) );
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -148,7 +149,8 @@ NTSTATUS CbInstanceSetup ( _In_ PCFLT_RELATED_OBJECTS FltObjects, _In_ FLT_INSTA
 
     if( ! NT_SUCCESS( status ))
     {
-        ERROR_PRINT( "\nCB: !!! ERROR FltSetInstanceContext failed status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR FltSetInstanceContext failed status=%S\n", GetStatusString( status, Buffer ) );
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -322,7 +324,7 @@ VOID CbContextCleanup ( _In_ PFLT_CONTEXT Context, _In_ FLT_CONTEXT_TYPE Context
 
 NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie )
 {
-    //PAGED_CODE();
+    PAGED_CODE();
 
     UNREFERENCED_PARAMETER( ServerPortCookie );
     UNREFERENCED_PARAMETER( ConnectionContext );
@@ -340,7 +342,8 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     NTSTATUS status = GetCurrentProcessKernelHandler( &hProcess );
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR ZwOpenProcess failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR ZwOpenProcess failed. status=%S\n", GetStatusString( status, Buffer ) );
         return status;
     }
 
@@ -361,7 +364,7 @@ VOID BackupPortDisconnect( _In_opt_ PVOID ConnectionCookie )
 {
     UNREFERENCED_PARAMETER( ConnectionCookie );
 
-    //PAGED_CODE();
+    PAGED_CODE();
 
     INFO_PRINT( "CB: INFO BackupPortDisconnect: port=0x%p ENTER\n", g_CeBackupData.ClientBackupPort );
 
@@ -384,7 +387,7 @@ VOID BackupPortDisconnect( _In_opt_ PVOID ConnectionCookie )
 
 NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie )
 {
-    //PAGED_CODE();
+    PAGED_CODE();
     UNREFERENCED_PARAMETER( ServerPortCookie );
     UNREFERENCED_PARAMETER( ConnectionContext );
     UNREFERENCED_PARAMETER( SizeOfContext);
@@ -405,7 +408,7 @@ NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPo
 
 VOID RestorePortDisconnect( _In_opt_ PVOID ConnectionCookie )
 {
-    //PAGED_CODE();
+    PAGED_CODE();
     UNREFERENCED_PARAMETER( ConnectionCookie );
 
     INFO_PRINT( "CB: INFO RestorePortDisconnect: port=0x%p ENTER\n", g_CeBackupData.ClientRestorePort );
@@ -434,7 +437,8 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCU
     status = FltGetDiskDeviceObject( Volume, &devObj );
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR FltGetDiskDeviceObject failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\n!!!! CB: ERROR FltGetDiskDeviceObject failed. status=%S\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
@@ -442,13 +446,14 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCU
     status = IoVolumeDeviceToDosName( devObj, &uniDisk );
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR IoVolumeDeviceToDosName failed. status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\n!!! CB: ERROR IoVolumeDeviceToDosName failed. status=%S\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 
     if( uniDisk.Length + ParentDir->Length + FileName->Length + 1 > MAX_PATH_SIZE )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR Result Path is too big\n" );
+        ERROR_PRINT( "\n!!! CB: ERROR Result Path is too big > 260 : %d\n", uniDisk.Length + ParentDir->Length + FileName->Length + 1 );
         goto Cleanup;
     }
 
@@ -479,7 +484,8 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCU
     status = FltSendMessage( g_CeBackupData.Filter, &g_CeBackupData.ClientBackupPort, pNotification, sizeof(BACKUP_NOTIFICATION), pNotification, &replyLength, NULL );
     if( ! NT_SUCCESS(status) )
     {
-        ERROR_PRINT( "\nCB: !!! ERROR FltSendMessage failed status=%S\n", GetStatusString( status ) );
+        WCHAR Buffer[MAX_PATH_SIZE];
+        ERROR_PRINT( "\nCB: !!! ERROR FltSendMessage failed status=%S\n", GetStatusString( status, Buffer ) );
         goto Cleanup;
     }
 

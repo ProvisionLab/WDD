@@ -38,7 +38,7 @@ int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 
     if( ! test.Run( strIniPath ) )
 	{
-		ERROR_PRINT( _T("Some tests failed\n") );
+		ERROR_PRINT( _T("\nSome tests failed\n") );
 		return 1;
 	}
 

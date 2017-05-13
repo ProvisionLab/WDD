@@ -13,7 +13,10 @@ public:
 	bool StartCeuser();
 
 private:
-	bool CheckFile( const tstring& Path, bool Included );
+	bool EmptyFile( const tstring& Path );
+	bool WriteAndCheckRead( const tstring& Path, bool Included );
+	bool Restore( const tstring& Destination, const tstring& Path, const tstring& Dir, bool To );
+	bool GetContent( const tstring& Path, tstring& Content );
 
 	CSettings _Settings;
 };
