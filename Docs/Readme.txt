@@ -13,12 +13,18 @@ https://go.microsoft.com/fwlink/p/?LinkId=845980
 
 
 
-INSTALL:
 Install driver on Windows 10 x64:
-1. Boot up Windows with driver signatures checking turned off
+
+INSTALL DRIVER TO LOAD AT BOOT TIME:
+1. In cebackup.inf file find StartType = 3 and change it to = 0. Keep in mind that test application cetest.exe will not work
 2. Install cebackup.inf by right-click Install in File Explorer
-3.copy cebackup.sys C:\Windows\System32\drivers\
-fltmc load cebackup
+3. Reboot Windows
+
+INSTALL DRIVER TO LOAD ON DEMAND:
+1. Install cebackup.inf by right-click Install in File Explorer
+2. copy cebackup.sys C:\Windows\System32\drivers\
+3. fltmc load cebackup
+
 
 To run backup application
 1. Fill cebackup.ini with appropriate insformation
