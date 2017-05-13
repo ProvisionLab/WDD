@@ -6,14 +6,14 @@
 #define CHECK_STATUS(s) \
 if( ! NT_SUCCESS( s ) ) \
 { \
-    DbgPrint( "\n!!! CB ERROR %x:", s ); \
+    DbgPrint( "\n!!! CB ERROR status=%x:", s ); \
     DbgPrint( #s ); \
     return; \
 }
 
 VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAccess, USHORT ShareAccess, ULONG Flags )
 {
-    DECLARE_UNICODE_STRING_SIZE( FinalBuffer, MAX_PATH_SIZE );
+    DECLARE_UNICODE_STRING_SIZE( FinalBuffer, MAX_UNI_PATH_SIZE);
     DECLARE_UNICODE_STRING_SIZE( DaBuffer, MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( SaBuffer, MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( FlgBuffer, MAX_PATH_SIZE );

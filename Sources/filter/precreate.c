@@ -23,7 +23,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     HANDLE SourceProcessHandle = NULL;
     HANDLE TargetProcessHandle = NULL;
     WCHAR strFileName[MAX_PATH_SIZE] = {0};
-    char BufferUniName[MAX_PATH_SIZE] = {0};
+    char BufferUniName[MAX_UNI_PATH_SIZE] = {0};
     WCHAR* strProcessName = L"";
     FLT_PREOP_CALLBACK_STATUS filterStatus = FLT_PREOP_SUCCESS_NO_CALLBACK;
 
@@ -119,7 +119,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 */
 
     DWORD dwRetLen = 0;
-	status = ZwQueryInformationProcess( NtCurrentProcess(), ProcessImageFileName, BufferUniName, MAX_PATH_SIZE, &dwRetLen );
+	status = ZwQueryInformationProcess( NtCurrentProcess(), ProcessImageFileName, BufferUniName, sizeof(BufferUniName), &dwRetLen );
     if( ! NT_SUCCESS(status) || ! dwRetLen )
     {
         WCHAR Buffer[MAX_PATH_SIZE];
@@ -137,7 +137,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
 
     DEBUG_PRINT( "CB: DEBUG PreCreate ENTER with %S Process=%S\n", strFileName, strProcessName );
 
-    MjCreatePrint( nameInfo, Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, Data->Iopb->Parameters.Create.ShareAccess, FltObjects->FileObject->Flags );
+    //MjCreatePrint( nameInfo, Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, Data->Iopb->Parameters.Create.ShareAccess, FltObjects->FileObject->Flags );
     //DbgBreakPoint();
 
     ExAcquireFastMutex( &g_CeBackupData.Guard ); //Going to APCL IRQL
