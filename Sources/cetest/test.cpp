@@ -142,7 +142,7 @@ bool CTest::EmptyFile( const tstring& Path )
 bool CTest::WriteAndCheckRead( const tstring& Path, bool Included )
 {
 	tstring strPreviousContent;
-	int nWrites = ( rand() % 10 ) + 1;
+	int nWrites = ( rand() % 10 ) + 2;
 	for( int i=0; i<nWrites; i++ )
 	{
 		tstring strContent;
