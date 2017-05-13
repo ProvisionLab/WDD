@@ -1,5 +1,3 @@
-//TODO: Load at boot time
-
 #include <fltKernel.h>
 #include <ntstrsafe.h>
 #include <dontuse.h>
@@ -126,8 +124,7 @@ NTSTATUS CbInstanceSetup ( _In_ PCFLT_RELATED_OBJECTS FltObjects, _In_ FLT_INSTA
     status = FltAllocateContext( FltObjects->Filter, FLT_INSTANCE_CONTEXT, CB_INSTANCE_CONTEXT_SIZE, NonPagedPool, &instanceContext );
     if( ! NT_SUCCESS( status ))
     {
-        WCHAR Buffer[MAX_PATH_SIZE];
-        ERROR_PRINT( "\nCB: !!! ERROR CbInstanceSetup: FltAllocateContext failed status=%S\n", GetStatusString( status, Buffer ) );
+        ERROR_PRINT( "\nCB: !!! ERROR CbInstanceSetup: FltAllocateContext failed status=%S\n", GetStatusString( status ) );
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -149,8 +146,7 @@ NTSTATUS CbInstanceSetup ( _In_ PCFLT_RELATED_OBJECTS FltObjects, _In_ FLT_INSTA
 
     if( ! NT_SUCCESS( status ))
     {
-        WCHAR Buffer[MAX_PATH_SIZE];
-        ERROR_PRINT( "\nCB: !!! ERROR FltSetInstanceContext failed status=%S\n", GetStatusString( status, Buffer ) );
+        ERROR_PRINT( "\nCB: !!! ERROR FltSetInstanceContext failed status=%S\n", GetStatusString( status ) );
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -342,8 +338,7 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
     NTSTATUS status = GetCurrentProcessKernelHandler( &hProcess );
     if( ! NT_SUCCESS(status) )
     {
-        WCHAR Buffer[MAX_PATH_SIZE];
-        ERROR_PRINT( "\nCB: !!! ERROR ZwOpenProcess failed. status=%S\n", GetStatusString( status, Buffer ) );
+        ERROR_PRINT( "\nCB: !!! ERROR ZwOpenProcess failed. status=%S\n", GetStatusString( status ) );
         return status;
     }
 
@@ -419,81 +414,4 @@ VOID RestorePortDisconnect( _In_opt_ PVOID ConnectionCookie )
 	g_CeBackupData.ClientRestorePort = NULL;
     g_CeBackupData.RestoreProcess = NULL;
 	ExReleaseFastMutex( &g_CeBackupData.Guard );
-}
-
-NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCUNICODE_STRING ParentDir, _In_ PCUNICODE_STRING FileName, _In_ LARGE_INTEGER CreationTime, _In_ LARGE_INTEGER LastAccessTime, _In_ LARGE_INTEGER LastWriteTime, _In_ LARGE_INTEGER ChangeTime, _In_ ULONG FileAttributes, _Out_ PBOOLEAN OkToOpen )
-{
-    NTSTATUS status = STATUS_SUCCESS;
-    PBACKUP_NOTIFICATION pNotification = NULL;
-    ULONG replyLength = 0;
-
-    *OkToOpen = TRUE;
-
-    if( g_CeBackupData.ClientBackupPort == NULL )
-        return STATUS_PORT_DISCONNECTED;
-
-    //Getting Disk Letter:
-    PDEVICE_OBJECT devObj = NULL;
-    status = FltGetDiskDeviceObject( Volume, &devObj );
-    if( ! NT_SUCCESS(status) )
-    {
-        WCHAR Buffer[MAX_PATH_SIZE];
-        ERROR_PRINT( "\n!!!! CB: ERROR FltGetDiskDeviceObject failed. status=%S\n", GetStatusString( status, Buffer ) );
-        goto Cleanup;
-    }
-
-    DECLARE_UNICODE_STRING_SIZE( uniDisk, MAX_PATH_SIZE );
-    status = IoVolumeDeviceToDosName( devObj, &uniDisk );
-    if( ! NT_SUCCESS(status) )
-    {
-        WCHAR Buffer[MAX_PATH_SIZE];
-        ERROR_PRINT( "\n!!! CB: ERROR IoVolumeDeviceToDosName failed. status=%S\n", GetStatusString( status, Buffer ) );
-        goto Cleanup;
-    }
-
-    if( uniDisk.Length + ParentDir->Length + FileName->Length + 1 > MAX_PATH_SIZE )
-    {
-        ERROR_PRINT( "\n!!! CB: ERROR Result Path is too big > 260 : %d\n", uniDisk.Length + ParentDir->Length + FileName->Length + 1 );
-        goto Cleanup;
-    }
-
-    DECLARE_UNICODE_STRING_SIZE( uniPath, MAX_PATH_SIZE );
-    RtlUnicodeStringPrintf( &uniPath, L"%wZ%wZ%wZ", uniDisk, ParentDir, FileName ) ;
-
-    DEBUG_PRINT( "CB: INFO Sending message Path=%wZ HANDLE=0x%p\n", uniPath, hFile );
-
-    pNotification = ExAllocatePoolWithTag( NonPagedPool, sizeof( BACKUP_NOTIFICATION ), 'kBeC' );
-
-    if( ! pNotification )
-    {
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        goto Cleanup;
-    }
-
-    RtlZeroMemory( pNotification, sizeof(*pNotification) );
-    pNotification->hFile = hFile;
-    RtlCopyMemory( &pNotification->Path, uniPath.Buffer, uniPath.Length + 1 );
-    pNotification->CreationTime = CreationTime;
-    pNotification->LastAccessTime = LastAccessTime;
-    pNotification->LastWriteTime = LastWriteTime;
-    pNotification->ChangeTime = ChangeTime;
-    pNotification->FileAttributes = FileAttributes;
-
-    replyLength = sizeof( BACKUP_REPLY );
-
-    status = FltSendMessage( g_CeBackupData.Filter, &g_CeBackupData.ClientBackupPort, pNotification, sizeof(BACKUP_NOTIFICATION), pNotification, &replyLength, NULL );
-    if( ! NT_SUCCESS(status) )
-    {
-        WCHAR Buffer[MAX_PATH_SIZE];
-        ERROR_PRINT( "\nCB: !!! ERROR FltSendMessage failed status=%S\n", GetStatusString( status, Buffer ) );
-        goto Cleanup;
-    }
-
-    *OkToOpen = ((PBACKUP_REPLY) pNotification)->OkToOpen;
-
-Cleanup:
-    if( pNotification )
-        ExFreePoolWithTag( pNotification, 'nacS' );
-
-    return status;
 }

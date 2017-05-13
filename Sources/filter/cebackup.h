@@ -45,7 +45,7 @@ NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPor
 NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie );
 VOID BackupPortDisconnect ( _In_opt_ PVOID ConnectionCookie );
 VOID RestorePortDisconnect ( _In_opt_ PVOID ConnectionCookie );
-NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PCUNICODE_STRING ParentDir, _In_ PCUNICODE_STRING FileName, _In_ LARGE_INTEGER CreationTime, _In_ LARGE_INTEGER LastAccessTime, _In_ LARGE_INTEGER LastWriteTime, _In_ LARGE_INTEGER ChangeTime, _In_ ULONG FileAttributes, _Out_ PBOOLEAN OkToOpen );
+NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PFLT_FILE_NAME_INFORMATION FltNameInfo, _In_ PFILE_BASIC_INFORMATION FileInfo, _Out_ PBOOLEAN OkToOpen );
 
 //Undocumented DDK
 NTSTATUS NTAPI ZwQueryInformationProcess( IN HANDLE	hProcessHandle, IN PROCESSINFOCLASS nProcessInformationClass, OUT PVOID pProcessInformation, IN ULONG ulProcessInformationLength, OUT PULONG pulReturnLength OPTIONAL );

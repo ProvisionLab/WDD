@@ -33,6 +33,9 @@
     <ClCompile Include="precreate.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="send.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="cebackup.inf">

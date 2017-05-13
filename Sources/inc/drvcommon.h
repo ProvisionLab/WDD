@@ -1,7 +1,6 @@
 #pragma once
 
-#define MAX_PATH_SIZE 270
-#define MAX_UNI_PATH_SIZE 1024
+#define MAX_PATH_SIZE 1024
 
 #define BACKUP_PORT_NAME L"\\CeBackupPort"
 #define RESTORE_PORT_NAME L"\\CeRestorePort"
