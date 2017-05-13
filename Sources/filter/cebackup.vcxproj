@@ -119,6 +119,7 @@
     <PostBuildEvent>
       <Command>if exist x:\ (
 xcopy /Y $(TargetPath) x:\Max
+xcopy /Y $(TargetDir)cebackup.inf x:\Max
 echo VM_COPY $(TargetPath)
 )</Command>
     </PostBuildEvent>

@@ -4,9 +4,9 @@
 #include "util.h"
 
 #define CHECK_STATUS(s) \
-if( ! NT_SUCCESS( (s) ) ) \
+if( ! NT_SUCCESS( s ) ) \
 { \
-    DbgPrint( "\n!!! CB ERROR:" ); \
+    DbgPrint( "\n!!! CB ERROR %x:", s ); \
     DbgPrint( #s ); \
     return; \
 }
@@ -112,6 +112,8 @@ const WCHAR* GetStatusString( NTSTATUS Status, WCHAR* Buffer )
         RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_OBJECT_NAME_NOT_FOUND" );
     else if( Status == STATUS_PORT_DISCONNECTED )
         RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_PORT_DISCONNECTED" );
+    else if( Status == STATUS_INFO_LENGTH_MISMATCH )
+        RtlStringCbCopyW( Buffer, MAX_PATH_SIZE, L"STATUS_INFO_LENGTH_MISMATCH" );
     else
         RtlStringCbPrintfW( Buffer, MAX_PATH_SIZE, L"%X", Status );
 
@@ -345,52 +347,3 @@ NTSTATUS ReferenceHandleInProcess( HANDLE hFile, PEPROCESS peProcess, PFILE_OBJE
 
     return status;
 }
-
-/*
-    HANDLE hFile2 = NULL;
-    status = ZwCreateFile( &hFile2, FILE_GENERIC_READ, &objectAttributes );
-    ERROR_PRINT( "CB: TMP ZwCreate hFile = %p status=0x%X\n", hFile2, status );
-    ZwClose( hFile2 );
-*/
-
-
-/* RECURSION!
-    status = ZwCreateFile( &hFile,
-                            FILE_ALL_ACCESS,
-                            &oa,
-                            &ioStatus,
-                            (PLARGE_INTEGER) NULL,
-                            0,
-                            FILE_SHARE_READ,
-                            FILE_OPEN, // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
-                            0L,
-                            NULL,
-                            0L );
-*/
-
-
-    //CHECK hFile
-    //STATUS_INVALID_PARAMETER
-    /*
-    IO_STATUS_BLOCK ioStatusRead = {0};
-    char TmpBuffer[512] = {0};
-    ULONG TmpBufferLength = sizeof(TmpBuffer);
-    status = ZwReadFile( hFile, NULL, NULL, NULL, &ioStatusRead, TmpBuffer, TmpBufferLength, 0, NULL );
-    if( ! NT_SUCCESS( status ) )
-    {
-        ERROR_PRINT( "\nCB: !!! ERROR ZwReadFile(%p) failed status=%S\n", hFile, GetStatusString( status ) );
-        status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto Cleanup;
-    }
-    */
-
-/* Possible fail
-    NtReadFile()
-    if( pFileObject->Flags & FO_SYNCHRONOUS_IO ) {}
-    else if (!ARGUMENT_PRESENT( ByteOffset ) && !(fileObject->Flags & (FO_NAMED_PIPE | FO_MAILSLOT))) 
-    {
-        // The file is not open for synchronous I/O operations, but the
-        // caller did not specify a ByteOffset parameter.
-        return STATUS_INVALID_PARAMETER;
-    }
-*/

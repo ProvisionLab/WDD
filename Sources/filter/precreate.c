@@ -11,7 +11,6 @@ extern BACKUP_DATA g_CeBackupData;
 FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFLT_RELATED_OBJECTS FltObjects, _Flt_CompletionContext_Outptr_ PVOID *CompletionContext )
 {
     UNREFERENCED_PARAMETER( CompletionContext );
-    FLT_PREOP_CALLBACK_STATUS filterStatus = FLT_PREOP_SUCCESS_NO_CALLBACK;
     NTSTATUS status;
     HANDLE hFile = NULL;
     PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
@@ -26,6 +25,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
     WCHAR strFileName[MAX_PATH_SIZE] = {0};
     char BufferUniName[MAX_PATH_SIZE] = {0};
     WCHAR* strProcessName = L"";
+    FLT_PREOP_CALLBACK_STATUS filterStatus = FLT_PREOP_SUCCESS_NO_CALLBACK;
+
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
     PFILE_OBJECT pDstFileObject = NULL;
 #endif
