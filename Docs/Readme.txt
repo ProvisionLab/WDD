@@ -16,7 +16,7 @@ https://go.microsoft.com/fwlink/p/?LinkId=845980
 Install driver on Windows 10 x64:
 
 INSTALL DRIVER TO LOAD AT BOOT TIME:
-1. In cebackup.inf file find StartType = 3 and change it to = 0. Keep in mind that test application cetest.exe will not work
+1. In cebackup.inf file find StartType = 3 and change it to = 0
 2. Install cebackup.inf by right-click Install in File Explorer
 3. Reboot Windows
 
