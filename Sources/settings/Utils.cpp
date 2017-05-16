@@ -272,4 +272,34 @@ bool ExecuteProcess( const char* CommadLineA, BOOL Wait )
 	return true;
 }
 
+static bool g_LogFileInitialized = false;
+static CRITICAL_SECTION g_guardLogFile;
+bool LogToFile( const std::string& log )
+{
+    bool ret = false;
+
+    if( ! g_LogFileInitialized )
+    {
+        InitializeCriticalSection( &g_guardLogFile );
+        g_LogFileInitialized = true;
+    }
+
+    EnterCriticalSection( &g_guardLogFile );
+	FILE* f = NULL;
+	fopen_s( &f, "c:\\ce.log", "a" );
+	if( ! f )
+		goto Cleanup;
+
+    size_t iWritten = fwrite( log.c_str(), 1, log.size(), f );
+	if( iWritten <= 0 )
+		goto Cleanup;
+
+    fclose( f );
+    ret = true;
+
+Cleanup:
+    LeaveCriticalSection( &g_guardLogFile );
+    return ret;
+}
+
 }

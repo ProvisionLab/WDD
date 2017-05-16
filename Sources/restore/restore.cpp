@@ -18,7 +18,8 @@ bool CRestore::Run( const tstring& IniPath, const tstring& Command, const tstrin
     }
 
 	CSettings settings;
-	if( ! settings.Init( IniPath ) )
+    tstring error;
+	if( ! settings.Init( IniPath, error ) )
         return false;
 
 	if( Command == _T("listall") )

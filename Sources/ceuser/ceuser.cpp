@@ -7,19 +7,19 @@ VOID Usage ()
     _tprintf( _T("Usage: ceuser [-ini cebackup.ini]\n") );
 }
 
-int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
+int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 {
     std::wstring strIniPath = _T("cebackup.ini");
 
     if( argc > 1 )
     {
-        if( _tcscmp( argv[1], _T("/?") ) )
+        if( _tcscmp( argv[1], _T("/?") ) == 0 )
         {
             Usage();
             return 1;
         }
 
-        if( ! _tcscmp( argv[1], _T("-ini") ) )
+        if( _tcscmp( argv[1], _T("-ini") ) != 0 )
         {
             Usage();
             return 1;
@@ -38,7 +38,8 @@ int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 
 	CBackupClient client;
 
-    if( ! client.Run( strIniPath ) )
+    tstring error;
+    if( ! client.Run( strIniPath, error ) )
         return 1;
 
     _tprintf( _T("CEUSER Exit") );

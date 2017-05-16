@@ -12,6 +12,22 @@
 #define BACKUP_DEFAULT_THREAD_COUNT     2
 #define BACKUP_MAX_THREAD_COUNT         64
 
+CBackupClient::CBackupClient()
+    : _completion(NULL)
+    , _port(NULL)
+{
+}
+
+bool CBackupClient::IsRunning()
+{
+    bool ret = false;
+    HANDLE hMutex = ::CreateMutex( NULL, FALSE, L"____CE_USER_APPLICATION____" );
+    ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
+    if( hMutex )
+        ::ReleaseMutex( hMutex );;
+
+    return ret;
+}
 
 bool CBackupClient::IsIncluded( const tstring& Path )
 {
@@ -91,6 +107,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         {
             //::CreateFile( L"C:\\XXXXX.txt", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
             ERROR_PRINT( _T("CEUSER: ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
+            OutputDebugString( (tstring( _T("CEUSER: ERROR: ReadFile failed: ") ) + SrcPath).c_str() );
             ret = false;
             goto Cleanup;
         }
@@ -109,7 +126,8 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
                 hDestFile = ::CreateFile( strDestPath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL );
                 if( hDestFile == INVALID_HANDLE_VALUE )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: Backup: Failed to open destination file %s, error=0x%X\n"), strDestPath.c_str(), ::GetLastError() );
+                    ERROR_PRINT( _T("CEUSER: ERROR: CreateFile failed to open destination file %s, error=0x%X\n"), strDestPath.c_str(), ::GetLastError() );
+                    OutputDebugString( (tstring( _T("CEUSER: ERROR: CreateFile failed to open destination file: ") ) + strDestPath).c_str() );
                     ret = false;
                     goto Cleanup;
                 }
@@ -120,6 +138,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
             if( ! bWrite )
             {
                 ERROR_PRINT( _T("CEUSER: ERROR: WriteFile %s failed, error=0x%X\n"), SrcPath.c_str(), ::GetLastError() );
+                OutputDebugString( (tstring( _T("CEUSER: ERROR: WriteFile failed: ") ) + SrcPath).c_str() );
                 ret = false;
                 goto Cleanup;
             }
@@ -133,6 +152,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
     if( hDestFile && ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
         ERROR_PRINT( _T("CEUSER: ERROR: SetFileTime( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
+        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
         ret = false;
         goto Cleanup;
     }
@@ -141,12 +161,14 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
     if( hDestFile && ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
     {
         ERROR_PRINT( _T("CEUSER: ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
+        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileAttributes failed: ") ) + strDestPath).c_str() );
         ret = false;
         goto Cleanup;
     }
 
     ret = true;
     INFO_PRINT( _T("CEUSER: INFO Backup done OK: %s, index=%d\n"), SrcPath.c_str(), iIndex );
+    OutputDebugString( (tstring( _T("CEUSER: INFO Backup done OK: ") ) + SrcPath).c_str() );
 
 Cleanup:
     if( hDestFile != NULL && hDestFile != INVALID_HANDLE_VALUE )
@@ -240,6 +262,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         result = BackupFile( notification->hFile, notification->Path, notification->FileAttributes, CreationTime, LastAccessTime, LastWriteTime );
 
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
+
 #else
 		::CloseHandle( notification->hFile );
 #endif
@@ -257,6 +280,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         else
         {
             ERROR_PRINT( _T("CEUSER: ERROR: Error replying message. Error = 0x%X\n"), hr );
+            OutputDebugString( _T("CEUSER: ERROR: Error replying message") );
             break;
         }
 
@@ -274,78 +298,89 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         if( hr == HRESULT_FROM_WIN32( ERROR_INVALID_HANDLE ) )
         {
             // CeedoBackup port disconnected.
-            INFO_PRINT( _T("CEUSER: INFO: Port is disconnected, probably due to scanner filter unloading.\n") );
+            INFO_PRINT( _T("CEUSER: INFO: Port is disconnected, probably due to scanner filter unloading\n") );
+            OutputDebugString( _T("CEUSER: INFO: Port is disconnected, probably due to scanner filter unloading") );
         }
         else
         {
             ERROR_PRINT( _T("CEUSER: ERROR: Port Get: Unknown error occurred. Error = 0x%X\n"), hr );
+            OutputDebugString( _T("CEUSER: ERROR: Port Get: Unknown error occurred") );
         }
     }
 
-    free( message );
+    if( message )
+        free( message );
 }
 
-bool CBackupClient::Run( const tstring& IniPath )
+bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
 {
+    bool ret = false;
 	DWORD requestCount = BACKUP_REQUEST_COUNT;
     DWORD threadCount = BACKUP_DEFAULT_THREAD_COUNT;
     HANDLE threads[BACKUP_MAX_THREAD_COUNT];
-    BACKUP_THREAD_CONTEXT context;
-    HANDLE port, completion;
 
     if( IsRunning() )
     {
-        ERROR_PRINT( _T("CEUSER: One instance of application is already running\n") );
+        error = _T("One instance of application is already running");
+        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T("\n") ).c_str() );
         return false;
     }
 
-	if( ! _Settings.Init( IniPath ) )
+	if( ! _Settings.Init( IniPath, error ) )
         return false;
 
 	INFO_PRINT( _T("CEUSER: [Settings] File: %s\n"), IniPath.c_str() );
 	INFO_PRINT( _T("CEUSER: [Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
 
     if( ! Utils::CreateDirectory( _Settings.Destination.c_str() ) )
+    {
+        error = _T("Failed to create Destination directory: ") + _Settings.Destination;
+        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T("\n") ).c_str() );
         return false;
+    }
 
 	InitializeCriticalSection( &_guardDestFile );
 
     //  Open a communication channel to the filter
     INFO_PRINT( _T("CEUSER: INFO: Connecting to the filter ...\n") );
 
-    HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &port );
+    HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_port );
     if( IS_ERROR( hr ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: Failed connect to filter port: 0x%08x\n"), hr );
+        error = _T("Failed connect to filter port");
+        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": 0x%08x\n") ).c_str(), hr );
         return false;
     }
 
     //  Create a completion port to associate with this handle.
-    completion = ::CreateIoCompletionPort( port, NULL, 0, threadCount );
-    if( ! completion )
+    _completion = ::CreateIoCompletionPort( _port, NULL, 0, threadCount );
+    if( ! _completion )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: Creating completion port: %d\n"), GetLastError() );
-        CloseHandle( port );
+        error = _T("Failed to creat completion port");
+        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": %d\n") ).c_str(), ::GetLastError() );
+        ::CloseHandle( _port );
+        _port = NULL;
         return false;
     }
 
-    INFO_PRINT( _T("CEUSER: INFO: Connected: Port = 0x%p Completion = 0x%p\n"), port, completion );
+    INFO_PRINT( _T("CEUSER: INFO: Connected: Port = 0x%p Completion = 0x%p\n"), _port, _completion );
 
-    context.Port = port;
-    context.Completion = completion;
-    context.This = this;
+    _Context.Port = _port;
+    _Context.Completion = _completion;
+    _Context.This = this;
 
     // Create specified number of threads.
     DWORD i = 0;
     for( i = 0; i < threadCount; i++ )
     {
         DWORD threadId;
-        threads[i] = ::CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) _BackupWorker, &context, 0, &threadId );
+        threads[i] = ::CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) _BackupWorker, &_Context, 0, &threadId );
         if( ! threads[i] ) 
         {
             //  Couldn't create thread.
             hr = ::GetLastError();
-            ERROR_PRINT( _T("CEUSER: ERROR: Couldn't create thread: %d\n"), hr );
+            error = _T("Couldn't create thread");
+            ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": 0x%08x\n") ).c_str(), hr );
             goto Cleanup;
         }
 
@@ -356,41 +391,50 @@ bool CBackupClient::Run( const tstring& IniPath )
             if( ! msg )
             {
                 hr = ERROR_NOT_ENOUGH_MEMORY;
+                error = _T("Couldn't malloc BACKUP_MESSAGE");
+                ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": 0x%08x\n") ).c_str(), hr );
                 goto Cleanup;
             }
 
             memset( msg, 0, sizeof( BACKUP_MESSAGE ) );
 
             // Request messages from the filter driver.
-            hr = ::FilterGetMessage( port, &msg->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &msg->Ovlp );
+            hr = ::FilterGetMessage( _port, &msg->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &msg->Ovlp );
 
             if( hr != HRESULT_FROM_WIN32( ERROR_IO_PENDING ) )
             {
+                error = _T("FilterGetMessage failed");
                 free( msg );
                 goto Cleanup;
             }
         }
     }
 
+    ret = true;
+    OutputDebugString( _T("CEUSER: INFO: Started") );
+
+    if( async )
+        return ret;
+
     ::WaitForMultipleObjectsEx( i, threads, TRUE, INFINITE, FALSE );
 
 Cleanup:
-
-    ::CloseHandle( port );
-    ::CloseHandle( completion );
-
-    return true;
-}
-
-bool CBackupClient::IsRunning()
-{
-    bool ret = false;
-    HANDLE hMutex = ::CreateMutex( NULL, FALSE, L"____CE_USER_APPLICATION____" );
-    ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
-    if( hMutex )
-        ::ReleaseMutex( hMutex );;
+    ::CloseHandle( _port );
+    ::CloseHandle( _completion );
 
     return ret;
+}
+
+bool CBackupClient::Stop()
+{
+    if( ! _completion )
+        return false;
+
+    ::CloseHandle( _port );
+    ::CloseHandle( _completion );
+    _port = NULL;
+    _completion = NULL;
+    return true;
 }
 
 /*TMP

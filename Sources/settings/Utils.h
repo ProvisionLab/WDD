@@ -13,6 +13,7 @@ namespace Utils
 	tstring GetLastErrorString();
 	tstring GetErrorString( DWORD err );
 	bool ExecuteProcess( const char* CommadLineA, BOOL Wait = TRUE );
+    bool LogToFile( const std::string& log );
 
 	class CPathDetails
 	{

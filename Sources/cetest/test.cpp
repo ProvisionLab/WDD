@@ -16,7 +16,8 @@ bool CTest::Run( const tstring& IniPath )
 
 	srand( (unsigned int)time(NULL) );
 
-	if( ! _Settings.Init( IniPath ) )
+    tstring error;
+	if( ! _Settings.Init( IniPath, error ) )
 		return false;
 
 	INFO_PRINT( _T("[Settings] File: %s\n"), IniPath.c_str() );

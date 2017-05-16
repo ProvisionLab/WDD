@@ -16,7 +16,9 @@ typedef struct _BACKUP_THREAD_CONTEXT
 class CBackupClient
 {
 public:
-    bool Run( const tstring& IniPath );
+    CBackupClient();
+    bool Run( const tstring& IniPath, tstring& error, bool async = false );
+    bool Stop();
 
 private:
     bool IsRunning();
@@ -29,4 +31,6 @@ private:
 
 	CSettings _Settings;
     CRITICAL_SECTION _guardDestFile;
+    HANDLE _port, _completion;
+    BACKUP_THREAD_CONTEXT _Context;
 };

@@ -116,6 +116,8 @@ const WCHAR* GetStatusString( NTSTATUS Status )
         RtlStringCbCopyW( g_StatusString, _MAX_PATH_SIZE, L"STATUS_PORT_DISCONNECTED" );
     else if( Status == STATUS_INFO_LENGTH_MISMATCH )
         RtlStringCbCopyW( g_StatusString, _MAX_PATH_SIZE, L"STATUS_INFO_LENGTH_MISMATCH" );
+    else if( Status == STATUS_THREAD_IS_TERMINATING )
+        RtlStringCbCopyW( g_StatusString, _MAX_PATH_SIZE, L"STATUS_THREAD_IS_TERMINATING" );
     else
         RtlStringCbPrintfW( g_StatusString, _MAX_PATH_SIZE, L"%X", Status );
 

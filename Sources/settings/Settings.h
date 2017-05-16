@@ -13,8 +13,8 @@ public:
 
 	CSettings();
 	virtual ~CSettings() {};
-	bool Init( const std::wstring& IniPath );
+	bool Init( const std::wstring& IniPath, tstring& error );
 
 private:
-	bool ParseIni( INIReader& reader, const tstring& IniPath );
+	bool ParseIni( INIReader& reader, const tstring& IniPath, tstring& error );
 };
