@@ -36,6 +36,9 @@
     <ClCompile Include="send.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="presetinfo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="cebackup.inf">

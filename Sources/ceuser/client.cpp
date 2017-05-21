@@ -7,14 +7,9 @@
 
 #define METHOD_CLOSE_HANDLE_IN_DRIVER 0
 
-//  Default and Maximum number of threads.
-#define BACKUP_REQUEST_COUNT            5
-#define BACKUP_DEFAULT_THREAD_COUNT     2
-#define BACKUP_MAX_THREAD_COUNT         64
-
 CBackupClient::CBackupClient()
-    : _completion(NULL)
-    , _port(NULL)
+    : _hCompletion(NULL)
+    , _hPort(NULL)
 {
 }
 
@@ -68,7 +63,7 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     return false;
 }
 
-bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD SrcAttribute, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
+bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
 {
     bool ret = false;
     tstring strMappedPathNoIndex = Utils::MapToDestination( _Settings.Destination, SrcPath );
@@ -79,7 +74,10 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
 
     iIndex ++;
     std::wstringstream oss;
-    oss << strMappedPathNoIndex << _T(".") << iIndex;
+    oss << strMappedPathNoIndex << _T(".");
+    if( Delete )
+        oss << _T("DELETED.");
+    oss << iIndex;
     tstring strDestPath = oss.str();
 
     Utils::CPathDetails pd;
@@ -89,7 +87,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         return false;
     }
 
-    EnterCriticalSection( &_guardDestFile );
+    //EnterCriticalSection( &_guardDestFile );
 
     //::CopyFile( Path.c_str(), strDestPath.c_str(), TRUE );
     HANDLE hDestFile = NULL;
@@ -105,7 +103,6 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
 
         if( ! bRead )
         {
-            //::CreateFile( L"C:\\XXXXX.txt", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
             ERROR_PRINT( _T("CEUSER: ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
             OutputDebugString( (tstring( _T("CEUSER: ERROR: ReadFile failed: ") ) + SrcPath).c_str() );
             ret = false;
@@ -167,7 +164,8 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
     }
 
     ret = true;
-    INFO_PRINT( _T("CEUSER: INFO Backup done OK: %s, index=%d\n"), SrcPath.c_str(), iIndex );
+
+    INFO_PRINT( _T("CEUSER: INFO: Backup done OK: %s, index=%d%s\n"), SrcPath.c_str(), iIndex, Delete ? _T(" DELETED") : _T("") );
     OutputDebugString( (tstring( _T("CEUSER: INFO Backup done OK: ") ) + SrcPath).c_str() );
 
 Cleanup:
@@ -178,15 +176,15 @@ Cleanup:
     }
     else if( hDestFile == NULL )
     {
-        INFO_PRINT( _T("CEUSER: DEBUG: Skipping empty file %s\n"), SrcPath.c_str() );
+        INFO_PRINT( _T("CEUSER: INFO: Skipping empty file %s\n"), SrcPath.c_str() );
     }
 
-    LeaveCriticalSection( &_guardDestFile );
+    //LeaveCriticalSection( &_guardDestFile );
 
     return ret;
 }
 
-bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAttribute, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
+bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
 {
     if( SrcAttribute & FILE_ATTRIBUTE_DIRECTORY )
     {
@@ -203,7 +201,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAtt
 
     if( IsIncluded( strLower ) )
     {
-        return DoBackup( hFile, Path, SrcAttribute, CreationTime, LastAccessTime, LastWriteTime );
+        return DoBackup( hFile, Path, SrcAttribute, Delete, CreationTime, LastAccessTime, LastWriteTime );
     }
     else
     {
@@ -222,9 +220,9 @@ DWORD CBackupClient::_BackupWorker( _In_ PBACKUP_THREAD_CONTEXT pContext )
 
 void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
 {
-    PBACKUP_NOTIFICATION notification = NULL;
+    PBACKUP_NOTIFICATION pNotification = NULL;
     BACKUP_REPLY_MESSAGE replyMessage;
-    PBACKUP_MESSAGE message = NULL;
+    PBACKUP_MESSAGE pMessage = NULL;
     LPOVERLAPPED pOvlp = NULL;
     HRESULT hr;
 
@@ -239,7 +237,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         //  the one dequeued off the completion queue: this is solely because there are multiple
         //  threads per single port handle. Any of the FilterGetMessage() issued messages can be
         //  completed in random order - and we will just dequeue a random one.
-        message = CONTAINING_RECORD( pOvlp, BACKUP_MESSAGE, Ovlp );
+        pMessage = CONTAINING_RECORD( pOvlp, BACKUP_MESSAGE, Ovlp );
 
         if( ! result )
         {
@@ -248,27 +246,27 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
             break;
         }
 
-        notification = &message->Notification;
-        DEBUG_PRINT( _T("CEUSER: DEBUG: File write notification: Path=%s HANDLE=0x%p\n"), notification->Path, notification->hFile );
+        pNotification = &pMessage->Notification;
+        DEBUG_PRINT( _T("CEUSER: DEBUG: File write notification: Path=%s HANDLE=0x%p\n"), pNotification->Path, pNotification->hFile );
 
         FILETIME CreationTime, LastAccessTime, LastWriteTime;
-        CreationTime.dwLowDateTime = notification->CreationTime.LowPart;
-        CreationTime.dwHighDateTime = notification->CreationTime.HighPart;
-        LastAccessTime.dwLowDateTime = notification->LastAccessTime.LowPart;
-        LastAccessTime.dwHighDateTime = notification->LastAccessTime.HighPart;
-        LastWriteTime.dwLowDateTime = notification->LastWriteTime.LowPart;
-        LastWriteTime.dwHighDateTime = notification->LastWriteTime.HighPart;
+        CreationTime.dwLowDateTime = pNotification->CreationTime.LowPart;
+        CreationTime.dwHighDateTime = pNotification->CreationTime.HighPart;
+        LastAccessTime.dwLowDateTime = pNotification->LastAccessTime.LowPart;
+        LastAccessTime.dwHighDateTime = pNotification->LastAccessTime.HighPart;
+        LastWriteTime.dwLowDateTime = pNotification->LastWriteTime.LowPart;
+        LastWriteTime.dwHighDateTime = pNotification->LastWriteTime.HighPart;
 
-        result = BackupFile( notification->hFile, notification->Path, notification->FileAttributes, CreationTime, LastAccessTime, LastWriteTime );
+        result = BackupFile( pNotification->hFile, pNotification->Path, pNotification->FileAttributes, pNotification->DeleteOperation != 0, CreationTime, LastAccessTime, LastWriteTime );
 
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
 
 #else
-		::CloseHandle( notification->hFile );
+		::CloseHandle( pNotification->hFile );
 #endif
 
         replyMessage.ReplyHeader.Status = 0;
-        replyMessage.ReplyHeader.MessageId = message->MessageHeader.MessageId;
+        replyMessage.ReplyHeader.MessageId = pMessage->MessageHeader.MessageId;
 
         replyMessage.Reply.OkToOpen = TRUE;
 
@@ -284,9 +282,9 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
             break;
         }
 
-        memset( &message->Ovlp, 0, sizeof( OVERLAPPED ) );
+        memset( &pMessage->Ovlp, 0, sizeof( OVERLAPPED ) );
 
-        hr = ::FilterGetMessage( Port, &message->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &message->Ovlp );
+        hr = ::FilterGetMessage( Port, &pMessage->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &pMessage->Ovlp );
         if( hr != HRESULT_FROM_WIN32( ERROR_IO_PENDING ) )
         {
             break;
@@ -308,8 +306,8 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         }
     }
 
-    if( message )
-        free( message );
+    if( pMessage )
+        free( pMessage );
 }
 
 bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
@@ -317,7 +315,6 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     bool ret = false;
 	DWORD requestCount = BACKUP_REQUEST_COUNT;
     DWORD threadCount = BACKUP_DEFAULT_THREAD_COUNT;
-    HANDLE threads[BACKUP_MAX_THREAD_COUNT];
 
     if( IsRunning() )
     {
@@ -344,7 +341,7 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     //  Open a communication channel to the filter
     INFO_PRINT( _T("CEUSER: INFO: Connecting to the filter ...\n") );
 
-    HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_port );
+    HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_hPort );
     if( IS_ERROR( hr ) )
     {
         error = _T("Failed connect to filter port");
@@ -353,20 +350,20 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     }
 
     //  Create a completion port to associate with this handle.
-    _completion = ::CreateIoCompletionPort( _port, NULL, 0, threadCount );
-    if( ! _completion )
+    _hCompletion = ::CreateIoCompletionPort( _hPort, NULL, 0, threadCount );
+    if( ! _hCompletion )
     {
         error = _T("Failed to creat completion port");
         ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": %d\n") ).c_str(), ::GetLastError() );
-        ::CloseHandle( _port );
-        _port = NULL;
+        ::CloseHandle( _hPort );
+        _hPort = NULL;
         return false;
     }
 
-    INFO_PRINT( _T("CEUSER: INFO: Connected: Port = 0x%p Completion = 0x%p\n"), _port, _completion );
+    INFO_PRINT( _T("CEUSER: INFO: Connected: Port = 0x%p Completion = 0x%p\n"), _hPort, _hCompletion );
 
-    _Context.Port = _port;
-    _Context.Completion = _completion;
+    _Context.Port = _hPort;
+    _Context.Completion = _hCompletion;
     _Context.This = this;
 
     // Create specified number of threads.
@@ -374,8 +371,8 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     for( i = 0; i < threadCount; i++ )
     {
         DWORD threadId;
-        threads[i] = ::CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) _BackupWorker, &_Context, 0, &threadId );
-        if( ! threads[i] ) 
+        _Threads[i] = ::CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) _BackupWorker, &_Context, 0, &threadId );
+        if( ! _Threads[i] ) 
         {
             //  Couldn't create thread.
             hr = ::GetLastError();
@@ -399,7 +396,7 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
             memset( msg, 0, sizeof( BACKUP_MESSAGE ) );
 
             // Request messages from the filter driver.
-            hr = ::FilterGetMessage( _port, &msg->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &msg->Ovlp );
+            hr = ::FilterGetMessage( _hPort, &msg->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &msg->Ovlp );
 
             if( hr != HRESULT_FROM_WIN32( ERROR_IO_PENDING ) )
             {
@@ -416,33 +413,23 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     if( async )
         return ret;
 
-    ::WaitForMultipleObjectsEx( i, threads, TRUE, INFINITE, FALSE );
+    ::WaitForMultipleObjectsEx( i, _Threads, TRUE, INFINITE, FALSE );
 
 Cleanup:
-    ::CloseHandle( _port );
-    ::CloseHandle( _completion );
+    ::CloseHandle( _hPort );
+    ::CloseHandle( _hCompletion );
 
     return ret;
 }
 
 bool CBackupClient::Stop()
 {
-    if( ! _completion )
+    if( ! _hCompletion )
         return false;
 
-    ::CloseHandle( _port );
-    ::CloseHandle( _completion );
-    _port = NULL;
-    _completion = NULL;
+    ::CloseHandle( _hPort );
+    ::CloseHandle( _hCompletion );
+    _hPort = NULL;
+    _hCompletion = NULL;
     return true;
 }
-
-/*TMP
-    tstring name = _T("C:\\Max\\Test\\file1.txt");
-    HANDLE hFile = ::CreateFile( name.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-    DWORD dwAttributes = ::GetFileAttributesEx( name.c_str() );
-    FILETIME CreationTime, LastAccessTime, LastWriteTime, ChangeTime;
-    ::GetFileTime( hFile, &CreationTime, &LastAccessTime, &LastWriteTime );
-    BackupFile( hFile, name, dwAttributes, CreationTime, LastAccessTime, LastWriteTime );
-    ::CloseHandle( hFile );
-*/

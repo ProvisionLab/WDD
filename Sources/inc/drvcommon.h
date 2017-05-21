@@ -14,6 +14,7 @@ typedef struct _BACKUP_NOTIFICATION
     LARGE_INTEGER LastWriteTime;
     LARGE_INTEGER ChangeTime;
     ULONG FileAttributes;
+    ULONG DeleteOperation;
 } BACKUP_NOTIFICATION, *PBACKUP_NOTIFICATION;
 
 typedef struct _BACKUP_REPLY

@@ -9,6 +9,6 @@
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <LocalDebuggerCommandArguments>restore_to c:\777.txt.1 c:\max\restore</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
-    <RemoteDebuggerCommandArguments>-ini cebackup.ini restore_to c:\Max\777.txt.1 c:\max\restore</RemoteDebuggerCommandArguments>
+    <RemoteDebuggerCommandArguments>-ini cebackup.ini restore C:\Max\Test\dir1\1.txt.DELETED.1</RemoteDebuggerCommandArguments>
   </PropertyGroup>
 </Project>

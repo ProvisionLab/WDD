@@ -151,6 +151,7 @@ echo VM_COPY $(TargetPath)
   <ItemGroup>
     <ClCompile Include="cebackup.c" />
     <ClCompile Include="precreate.c" />
+    <ClCompile Include="presetinfo.c" />
     <ClCompile Include="send.c" />
     <ClCompile Include="util.c" />
     <ResourceCompile Include="cebackup.rc" />

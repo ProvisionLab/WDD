@@ -13,14 +13,14 @@ if( ! NT_SUCCESS( s ) ) \
 
 #define _MAX_PATH_SIZE 260
 
-VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAccess, USHORT ShareAccess, ULONG Flags )
+VOID MjCreatePrint( PUNICODE_STRING Name, ACCESS_MASK DesiredAccess, USHORT ShareAccess, ULONG Flags )
 {
     DECLARE_UNICODE_STRING_SIZE( FinalBuffer, 4 * _MAX_PATH_SIZE);
     DECLARE_UNICODE_STRING_SIZE( DaBuffer, _MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( SaBuffer, _MAX_PATH_SIZE );
     DECLARE_UNICODE_STRING_SIZE( FlgBuffer, _MAX_PATH_SIZE );
 
-    CHECK_STATUS( RtlUnicodeStringPrintf( &FinalBuffer, L"CB: PreCreate Name=%wZ", &NameInfo->FinalComponent ) );
+    CHECK_STATUS( RtlUnicodeStringPrintf( &FinalBuffer, L"CB: PreCreate Name=%wZ", Name ) );
     CHECK_STATUS( RtlUnicodeStringPrintf( &DaBuffer, L" DesiredAccess=0x%X(", DesiredAccess ) );
     CHECK_STATUS( RtlUnicodeStringPrintf( &SaBuffer, L" ShareAccess=0x%X(", ShareAccess ) );
     CHECK_STATUS( RtlUnicodeStringPrintf( &FlgBuffer, L" Flags=0x%X(", Flags ) );
@@ -82,7 +82,7 @@ VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAcce
         CHECK_STATUS( RtlUnicodeStringCatString( &SaBuffer, L"SHARE_DELETE " ) );
     }
 
-    CHECK_STATUS( RtlUnicodeStringCatString( &SaBuffer, L")" ) );
+    CHECK_STATUS( RtlUnicodeStringCatString( &SaBuffer, L") FileFlag=" ) );
 
     CHECK_STATUS( RtlUnicodeStringCatString( &FlgBuffer, L")" ) );
 
@@ -90,7 +90,7 @@ VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAcce
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &SaBuffer ) );
     CHECK_STATUS( RtlUnicodeStringCatString( &FinalBuffer, GetFileFlagString( Flags ) ) );
 
-    DEBUG_PRINT( "%wZ", FinalBuffer );
+    TMP_PRINT( "%wZ", FinalBuffer );
 }
 
 static WCHAR g_StatusString[_MAX_PATH_SIZE];
@@ -229,23 +229,41 @@ const WCHAR* GetDeviceFlagString( ULONG Flags )
 }
 
 static WCHAR g_PreopCallbackStatusString[_MAX_PATH_SIZE];
-
 const WCHAR* GetPreopCallbackStatusString( FLT_PREOP_CALLBACK_STATUS PreopStatus )
 {
     if( PreopStatus == FLT_PREOP_SUCCESS_WITH_CALLBACK )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_SUCCESS_WITH_CALLBACK " );
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_SUCCESS_WITH_CALLBACK" );
     else if( PreopStatus == FLT_PREOP_SUCCESS_NO_CALLBACK )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_SUCCESS_NO_CALLBACK " );
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_SUCCESS_NO_CALLBACK" );
     else if( PreopStatus == FLT_PREOP_PENDING )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_PENDING " );
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_PENDING" );
     else if( PreopStatus == FLT_PREOP_DISALLOW_FASTIO )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_DISALLOW_FASTIO " );
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_DISALLOW_FASTIO" );
     else if( PreopStatus == FLT_PREOP_COMPLETE )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_COMPLETE " );
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_COMPLETE" );
     else if( PreopStatus == FLT_PREOP_SYNCHRONIZE )
-        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_SYNCHRONIZE " );
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"FLT_PREOP_SYNCHRONIZE" );
+    else
+        RtlStringCbCopyW( g_PreopCallbackStatusString, _MAX_PATH_SIZE, L"UNKNOWN" );
 
     return g_PreopCallbackStatusString;
+}
+
+static WCHAR g_InformationClassString[_MAX_PATH_SIZE];
+const WCHAR* GetInformationClassString( FILE_INFORMATION_CLASS InfoClass )
+{
+    if( InfoClass == FileBasicInformation )
+        RtlStringCbCopyW( g_InformationClassString, _MAX_PATH_SIZE, L"FileBasicInformation" );
+    else if( InfoClass == FileEndOfFileInformation )
+        RtlStringCbCopyW( g_InformationClassString, _MAX_PATH_SIZE, L"FileEndOfFileInformation" );
+    else if( InfoClass == FileDispositionInformation )
+        RtlStringCbCopyW( g_InformationClassString, _MAX_PATH_SIZE, L"FileDispositionInformation" );
+    else if( InfoClass == FileDispositionInformationEx )
+        RtlStringCbCopyW( g_InformationClassString, _MAX_PATH_SIZE, L"FileDispositionInformationEx" );
+    else
+        RtlStringCbCopyW( g_InformationClassString, _MAX_PATH_SIZE, L"UNKNOWN" );
+
+    return g_InformationClassString;
 }
 
 NTSTATUS GetCurrentProcessKernelHandler( HANDLE* phProcess )

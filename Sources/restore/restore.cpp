@@ -166,8 +166,17 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
         return false;
 	}
 
-	Utils::CPathDetails pd;
-	if( ! pd.Parse( true, Path ) )
+    tstring strPath = Path;
+    tstring::size_type pos1 = Path.rfind( _T('.') );
+    tstring strDel = _T(".DELETED");
+    tstring::size_type pos2 = Path.rfind( strDel, pos1 );
+	if( pos2 != tstring::npos && pos2 + strDel.size() == pos1 )
+	{
+        strPath = Path.substr( 0, pos2 ) + Path.substr( pos1 );
+	}
+
+    Utils::CPathDetails pd;
+	if( ! pd.Parse( true, strPath ) )
 	{
         ERROR_PRINT( _T("RESTORE: ERROR: Failed parse provided path: %s\n"), Path.c_str() );
         return false;

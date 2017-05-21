@@ -31,6 +31,10 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] =
       0,
       PreCreate,
       PostOperation },
+    { IRP_MJ_SET_INFORMATION,
+      0,
+      PreSetInformation,
+      PostOperation },
     { IRP_MJ_OPERATION_END }
 };
 

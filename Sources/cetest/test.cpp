@@ -13,6 +13,8 @@
 bool CTest::Run( const tstring& IniPath )
 {
 	bool ret = false;
+    std::map<int, int> mapLastIndexes;
+    std::map<int, int> mapDummy;
 
 	srand( (unsigned int)time(NULL) );
 
@@ -40,9 +42,10 @@ bool CTest::Run( const tstring& IniPath )
 	if( Utils::DoesDirectoryExists( strRestoreDirectoryTo ) && ! Utils::RemoveDirectory( strRestoreDirectoryTo ) )
 		return false;
 
+    // Create files in IncludeDirectory
 	for( size_t i=0; i<_Settings.IncludedFiles.size(); i++ )
 	{
-		if( ! EmptyFile( _Settings.IncludedFiles[i] ) )
+		if( ! CreateEmptyFile( _Settings.IncludedFiles[i] ) )
 			return false;
 	}
 
@@ -50,7 +53,7 @@ bool CTest::Run( const tstring& IniPath )
 	for( size_t i=0; i<_Settings.IncludedDirectories.size(); i++ )
 	{
 		tstring strPath = _Settings.IncludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
-		if( ! EmptyFile( strPath ) )
+		if( ! CreateEmptyFile( strPath ) )
 			return false;
 	}
 
@@ -66,10 +69,10 @@ bool CTest::Run( const tstring& IniPath )
     if( ! Utils::CreateDirectory( strRestoreDirectoryTo.c_str() ) )
         goto Cleanup;
 
-	// Write to InclideFile. N files, N times, check content
+	// Write to IncludeFile. N files, N times, check content
 	for( size_t i=0; i<_Settings.IncludedFiles.size(); i++ )
 	{
-		if( ! WriteAndCheckRead( _Settings.IncludedFiles[i], true ) )
+		if( ! WriteAndCheckContent( _Settings.IncludedFiles[i], true, mapLastIndexes[i] ) )
 			goto Cleanup;
 	}
 
@@ -77,14 +80,14 @@ bool CTest::Run( const tstring& IniPath )
 	for( size_t i=0; i<_Settings.IncludedDirectories.size(); i++ )
 	{
 		tstring strPath = _Settings.IncludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
-		if( ! WriteAndCheckRead( strPath, true ) )
+		if( ! WriteAndCheckContent( strPath, true, mapDummy[i] ) )
 			return false;
 	}
 
 	// Write to ExcludedFile
 	for( size_t i=0; i<_Settings.ExcludedFiles.size(); i++ )
 	{
-		if( ! WriteAndCheckRead( _Settings.ExcludedFiles[i], false ) )
+		if( ! WriteAndCheckContent( _Settings.ExcludedFiles[i], false, mapDummy[i] ) )
 			goto Cleanup;
 	}
 
@@ -92,22 +95,33 @@ bool CTest::Run( const tstring& IniPath )
 	for( size_t i=0; i<_Settings.ExcludedDirectories.size(); i++ )
 	{
 		tstring strPath = _Settings.ExcludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
-		if( ! WriteAndCheckRead( strPath, false ) )
+		if( ! WriteAndCheckContent( strPath, false, mapDummy[i] ) )
 			goto Cleanup;
 	}
 
-	//Restore to
 	for( size_t i=0; i<_Settings.IncludedFiles.size(); i++ )
 	{
-		if( ! Restore( _Settings.Destination, _Settings.IncludedFiles[i], strRestoreDirectoryTo, true ) )
+    	//Restore to
+		if( ! Restore( _Settings.Destination, _Settings.IncludedFiles[i], strRestoreDirectoryTo, 1, true ) )
 		    goto Cleanup;
 
 		//Restore
-		if( ! Restore( _Settings.Destination, _Settings.IncludedFiles[i], strRestoreDirectory, false ) )
+		if( ! Restore( _Settings.Destination, _Settings.IncludedFiles[i], strRestoreDirectory ) )
 		    goto Cleanup;
 	}
 
-	ret = true;
+	// Delete IncludeFile. N files, check content
+	for( size_t i=0; i<_Settings.IncludedFiles.size(); i++ )
+	{
+		if( ! DeleteAndCheckContent( _Settings.Destination, _Settings.IncludedFiles[i], mapLastIndexes[i] + 1 ) )
+			goto Cleanup;
+
+		//Restore
+		if( ! Restore( _Settings.Destination, _Settings.IncludedFiles[i], strRestoreDirectory, mapLastIndexes[i] + 1, false, true ) )
+		    goto Cleanup;
+    }
+
+    ret = true;
 
 Cleanup:
 	if( ! StopCeuser() )
@@ -119,20 +133,20 @@ Cleanup:
 	return ret;
 }
 
-bool CTest::EmptyFile( const tstring& Path )
+bool CTest::CreateEmptyFile( const tstring& Path )
 {
 	FILE* f = NULL;
 	_tfopen_s( &f, Path.c_str(), _T("wb") );
 	if( ! f )
 	{
-		ERROR_PRINT( _T("ERROR: Failed to empty file %s\n"), Path.c_str() );
+		ERROR_PRINT( _T("CETEST: ERROR: Failed to open file %s\n"), Path.c_str() );
 		return false;
 	}
 	tstring strContent;
 	size_t iWritten = fwrite( strContent.c_str(), sizeof(TCHAR), strContent.size(), f );
 	if( iWritten != 0 )
 	{
-		ERROR_PRINT( _T("ERROR: Failed to write file %s\n"), Path.c_str() );
+		ERROR_PRINT( _T("CETEST: ERROR: Failed to write file %s\n"), Path.c_str() );
 		return false;
 	}
 	fclose( f );
@@ -140,10 +154,11 @@ bool CTest::EmptyFile( const tstring& Path )
 	return true;
 }
 
-bool CTest::WriteAndCheckRead( const tstring& Path, bool Included )
+bool CTest::WriteAndCheckContent( const tstring& Path, bool Included, int& LastIndex )
 {
 	tstring strPreviousContent;
 	int nWrites = ( rand() % 10 ) + 2;
+    LastIndex = nWrites - 1;
 	for( int i=0; i<nWrites; i++ )
 	{
 		tstring strContent;
@@ -158,14 +173,14 @@ bool CTest::WriteAndCheckRead( const tstring& Path, bool Included )
 		_tfopen_s( &f, Path.c_str(), _T("wb") );
 		if( ! f )
 		{
-			ERROR_PRINT( _T("ERROR: Failed to open file %s for write\n"), Path.c_str() );
+			ERROR_PRINT( _T("CETEST: ERROR: Failed to open file %s for write\n"), Path.c_str() );
 			return false;
 		}
 
         size_t iWritten = fwrite( strContent.c_str(), sizeof(TCHAR), strContent.size(), f );
 		if( iWritten <= 0 )
 		{
-			ERROR_PRINT( _T("ERROR: Failed to write file %s\n"), Path.c_str() );
+			ERROR_PRINT( _T("CETEST: ERROR: Failed to write file %s\n"), Path.c_str() );
 			return false;
 		}
 		fclose( f );
@@ -182,13 +197,13 @@ bool CTest::WriteAndCheckRead( const tstring& Path, bool Included )
 				tstring strBackupContent;
 				if( ! GetContent( strMappedName, strBackupContent ) )
                 {
-                    ERROR_PRINT( _T("ERROR: CheckFile: failed for %s\n"), strMappedName.c_str() );
+                    ERROR_PRINT( _T("CETEST: ERROR: CheckFile: failed for %s\n"), strMappedName.c_str() );
 					return false;
                 }
 
 				if( strBackupContent != strPreviousContent )
 				{
-					ERROR_PRINT( _T("ERROR: Backup content mismatch: backup: %s read: %s\n"), strBackupContent.c_str(), strPreviousContent.c_str() );
+					ERROR_PRINT( _T("CETEST: ERROR: Backup content mismatch: backup: %s read: %s\n"), strBackupContent.c_str(), strPreviousContent.c_str() );
 					return false;
 				}
 			}
@@ -198,7 +213,7 @@ bool CTest::WriteAndCheckRead( const tstring& Path, bool Included )
 				if( f )
 				{
 					fclose( f );
-					ERROR_PRINT( _T("ERROR: Excluded file %s is found when it shouldn't\n"), strMappedName.c_str() );
+					ERROR_PRINT( _T("CETEST: ERROR: Excluded file %s is found when it shouldn't\n"), strMappedName.c_str() );
 					return false;
 				}
 			}
@@ -210,10 +225,16 @@ bool CTest::WriteAndCheckRead( const tstring& Path, bool Included )
 	return true;
 }
 
-bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstring& Dir, bool To )
+bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstring& Dir, int Index, bool To, bool Deleted )
 {
 	tstring strMapped = Utils::MapToDestination( Destination, Path ) + _T(".1");
-    tstring strListed = Path + _T(".1");
+    std::wstringstream oss;
+    oss << Path;
+    if( Deleted )
+        oss << _T(".DELETED");
+    oss << _T(".");
+    oss << Index;
+    tstring strListed = oss.str();
 	std::string strPath( strListed.begin(), strListed.end() );
 	std::string strDir( Dir.begin(), Dir.end() );
 	std::string strCmd;
@@ -225,7 +246,7 @@ bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstr
 	tstring strBackupContent;
 	if( ! GetContent( strMapped, strBackupContent ) )
     {
-        ERROR_PRINT( _T("ERROR: Restore: GetContent: failed for %s\n"), Path.c_str() );
+        ERROR_PRINT( _T("CETEST: ERROR: Restore: GetContent: failed for %s\n"), Path.c_str() );
 		return false;
     }
 
@@ -240,7 +261,7 @@ bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstr
         tstring strRestoreToPath = Dir + _T("\\") + pd.Name;
 		if( ! GetContent( strRestoreToPath, strRestoredContent ) )
         {
-            ERROR_PRINT( _T("ERROR: Restore TO: GetContent: failed for %s\n"), Path.c_str() );
+            ERROR_PRINT( _T("CETEST: ERROR: Restore TO: GetContent: failed for %s\n"), Path.c_str() );
 			return false;
         }
 	}
@@ -248,14 +269,14 @@ bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstr
 	{
 		if( ! GetContent( Path, strRestoredContent ) )
         {
-            ERROR_PRINT( _T("ERROR: Restore TO: GetContent: failed for %s\n"), Path.c_str() );
+            ERROR_PRINT( _T("CETEST: ERROR: Restore TO: GetContent: failed for %s\n"), Path.c_str() );
 			return false;
         }
 	}
 
 	if( strBackupContent != strRestoredContent )
 	{
-		ERROR_PRINT( _T("ERROR: Restored content mismatch: backup: %s restored: %s\n"), strBackupContent.c_str(), strRestoredContent.c_str() );
+		ERROR_PRINT( _T("CETEST: ERROR: Restored content mismatch: backup: %s restored: %s\n"), strBackupContent.c_str(), strRestoredContent.c_str() );
 		return false;
 	}
 
@@ -264,19 +285,19 @@ bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstr
 
 bool CTest::StopDriver()
 {
-    INFO_PRINT( _T("INFO: Stopping driver\n") );
+    INFO_PRINT( _T("CETEST: INFO: Stopping driver\n") );
 	return Utils::ExecuteProcess( "fltmc unload cebackup" );
 }
 
 bool CTest::StopCeuser()
 {
-    INFO_PRINT( _T("INFO: Stopping ceuser\n") );
+    INFO_PRINT( _T("CETEST: INFO: Stopping ceuser\n") );
 	return Utils::ExecuteProcess( "taskkill /F /IM ceuser.exe" );
 }
 
 bool CTest::StartDriver()
 {
-    INFO_PRINT( _T("INFO: Starting driver\n") );
+    INFO_PRINT( _T("CETEST: INFO: Starting driver\n") );
 	return Utils::ExecuteProcess( "fltmc load cebackup" );
 }
 
@@ -296,19 +317,80 @@ bool CTest::GetContent( const tstring& Path, tstring& Content )
 	_tfopen_s( &f, Path.c_str(), _T("r") );
 	if( ! f )
 	{
-		ERROR_PRINT( _T("ERROR: Failed to open file %s for read\n"), Path.c_str() );
+		ERROR_PRINT( _T("CETEST: ERROR: Failed to open file %s for read\n"), Path.c_str() );
 		return false;
 	}
-	INFO_PRINT( _T("INFO: Checking file %s\n"), Path.c_str() );
+
+	INFO_PRINT( _T("CETEST: INFO: Checking file %s\n"), Path.c_str() );
 	TCHAR Buffer[MAX_PATH] = {0};
 	size_t iRead = fread( Buffer, sizeof(TCHAR), sizeof(Buffer), f );
 	if( iRead <= 0 )
 	{
-		ERROR_PRINT( _T("ERROR: Failed to read file %s\n"), Path.c_str() );
+		ERROR_PRINT( _T("CETEST: ERROR: Failed to read file %s\n"), Path.c_str() );
 		return false;
 	}
+
 	fclose( f );
 	Content = Buffer;
 
 	return true;
+}
+
+bool CTest::DeleteAndCheckContent( const tstring& Destination, const tstring& Path, int Index )
+{
+	tstring strPreviousContent, strBackupContent;
+
+	if( ! GetContent( Path, strPreviousContent ) )
+    {
+        ERROR_PRINT( _T("CETEST: ERROR: Delete: GetContent: failed for %s\n"), Path.c_str() );
+		return false;
+    }
+
+    static bool deleteMethod = false ;
+    deleteMethod = ! deleteMethod;
+    if( deleteMethod )
+    {
+        if( ! ::DeleteFile( Path.c_str() ) )
+        {
+            ERROR_PRINT( _T("CETEST: ERROR: Delete: DeleteFile: Failed to delete %s\n"), Path.c_str() );
+		    return false;
+        }
+    }
+    else
+    {
+        HANDLE hFile = ::CreateFile( Path.c_str(), DELETE, 0, NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_ATTRIBUTE_NORMAL, NULL );
+        if( hFile == INVALID_HANDLE_VALUE )
+        {
+            ERROR_PRINT( _T("CETEST: ERROR: Delete: CreateFile: Failed to delete %s\n"), Path.c_str() );
+		    return false;
+        }
+        ::CloseHandle( hFile );
+
+        FILE* f = NULL;
+		_tfopen_s( &f, Path.c_str(), _T("r") );
+		if( f )
+		{
+			fclose( f );
+			ERROR_PRINT( _T("CETEST: ERROR: Delete: CreateFile file %s is found when it shouldn't\n"), Path.c_str() );
+			return false;
+		}
+    }
+
+	std::wstringstream oss;
+    oss << Utils::MapToDestination( Destination, Path ) << _T(".DELETED.");
+    oss << Index;
+
+	if( ! GetContent( oss.str(), strBackupContent ) )
+    {
+        ERROR_PRINT( _T("CETEST: ERROR: Restore TO: GetContent: failed for %s\n"), oss.str().c_str() );
+		return false;
+    }
+
+	if( strBackupContent != strPreviousContent )
+	{
+		ERROR_PRINT( _T("CETEST: ERROR: Delete: Backup content mismatch: backup: %s read: %s\n"), strBackupContent.c_str(), strPreviousContent.c_str() );
+		return false;
+	}
+
+    return true;
 }

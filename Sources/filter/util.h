@@ -7,11 +7,12 @@
 
 #define ASSERT_BOOL_PRINT(x) if( !(x) ) DbgPrint( "ERROR: ASSERT: "## #x );
 
-VOID MjCreatePrint( PFLT_FILE_NAME_INFORMATION NameInfo, ACCESS_MASK DesiredAccess, USHORT shareAccess, ULONG Flags );
+VOID MjCreatePrint( PUNICODE_STRING Name, ACCESS_MASK DesiredAccess, USHORT shareAccess, ULONG Flags );
 const WCHAR* GetStatusString( NTSTATUS Status );
 const WCHAR* GetFileFlagString( ULONG Flags );
 const WCHAR* GetDeviceFlagString( ULONG Flags );
 const WCHAR* GetPreopCallbackStatusString( FLT_PREOP_CALLBACK_STATUS PreopStatus );
+const WCHAR* GetInformationClassString( FILE_INFORMATION_CLASS InfoClass );
 NTSTATUS GetCurrentProcessKernelHandler( HANDLE* phProcess );
 NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess );
 NTSTATUS UserHandleToKernelHandle( HANDLE hProcess, HANDLE* phProcess ) ;
