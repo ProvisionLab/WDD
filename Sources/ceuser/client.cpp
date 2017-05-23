@@ -40,7 +40,11 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     // 3. If If file is explicitly set in [IncludeFile] - backup it
     // 4. If If file's directory is explicitly set in [IncludeFile] - backup it
 
-    std::vector<tstring>::iterator it = std::find( _Settings.ExcludedFiles.begin(), _Settings.ExcludedFiles.end(), Path ) ;
+    std::vector<tstring>::iterator it = std::find( _Settings.ExcludedExtensions.begin(), _Settings.ExcludedExtensions.end(), pd.Extension ) ;
+    if( it != _Settings.ExcludedExtensions.end() )
+        return false;
+
+    it = std::find( _Settings.ExcludedFiles.begin(), _Settings.ExcludedFiles.end(), Path ) ;
     if( it != _Settings.ExcludedFiles.end() )
         return false;
 

@@ -10,6 +10,7 @@ public:
     std::vector<tstring> ExcludedFiles;
     std::vector<tstring> IncludedDirectories;
     std::vector<tstring> ExcludedDirectories;
+    std::vector<tstring> ExcludedExtensions;
 
 	CSettings();
 	virtual ~CSettings() {};

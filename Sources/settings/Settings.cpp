@@ -105,5 +105,23 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
         ExcludedDirectories.push_back( Utils::RemoveEndingSlash( strDirectory ) );
     }
 
+    iCount = reader.GetInteger( _T("ExcludeExtension"), _T("Count"), 0 );
+    for( int i=1; i<=iCount; i++ )
+    {
+        std::wstringstream oss;
+        oss << _T("Extension" ) << i;
+        tstring strName;
+        tstring strExtension = Utils::ToLower( reader.Get( _T("ExcludeExtension"), oss.str(), _T("") ) );
+
+        if( strExtension.length() == 0 )
+        {
+            error = _T("[ExcludeExtension] '") + oss.str() + _T("' not found in '") + IniPath + _T("'");
+            ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+            return false;
+        }
+
+        ExcludedExtensions.push_back( Utils::RemoveEndingSlash( strExtension ) );
+    }
+
     return true;
 }
