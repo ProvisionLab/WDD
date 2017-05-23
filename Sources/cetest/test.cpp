@@ -130,7 +130,12 @@ Cleanup:
 	if( ! StopDriver() )
 		return false;
 
-	return ret;
+	if( Utils::DoesDirectoryExists( strRestoreDirectory ) && ! Utils::RemoveDirectory( strRestoreDirectory ) )
+		return false;
+	if( Utils::DoesDirectoryExists( strRestoreDirectoryTo ) && ! Utils::RemoveDirectory( strRestoreDirectoryTo ) )
+		return false;
+
+    return ret;
 }
 
 bool CTest::CreateEmptyFile( const tstring& Path )

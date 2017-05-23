@@ -160,6 +160,8 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 
 bool CRestore::Restore( const tstring& Destination, const tstring& Path, const tstring& RestoreToDir )
 {
+    HANDLE hSrcFile = NULL;
+    HANDLE hDstFile = NULL;
 	if( Path.rfind( _T('.') ) == tstring::npos )
 	{
         ERROR_PRINT( _T("RESTORE: ERROR: Path without index was provided: %s\n"), Path.c_str() );
@@ -220,8 +222,44 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
         goto Cleanup;
     }
 
+    hSrcFile = ::CreateFile( strSrcPath.c_str(), FILE_READ_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
+    if( hSrcFile == INVALID_HANDLE_VALUE )
+    {
+        ERROR_PRINT( _T("RESTORE: ERROR: Restore: CreateFile: Failed to delete %s\n"), strSrcPath.c_str() );
+		goto Cleanup;
+    }
+
+    hDstFile = ::CreateFile( strDestPath.c_str(), FILE_WRITE_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
+    if( hDstFile == INVALID_HANDLE_VALUE )
+    {
+        ERROR_PRINT( _T("RESTORE: ERROR: Restore: CreateFile: Failed to delete %s\n"), strDestPath.c_str() );
+		goto Cleanup;
+    }
+
+    FILETIME CreationTime, LastAccessTime, LastWriteTime;
+    if( ! ::GetFileTime( hSrcFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
+    {
+        ERROR_PRINT( _T("RESTORE: ERROR: GetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+        OutputDebugString( (tstring( _T("RESTORE: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
+        goto Cleanup;
+    }
+
+    if( ! ::SetFileTime( hDstFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
+    {
+        ERROR_PRINT( _T("RESTORE: ERROR: SetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+        OutputDebugString( (tstring( _T("RESTORE: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
+        goto Cleanup;
+    }
+
+
 Cleanup:
-	if( hPort )
+    if( hSrcFile )
+        ::CloseHandle( hSrcFile );
+
+    if( hDstFile )
+        ::CloseHandle( hDstFile );
+
+    if( hPort )
 		::CloseHandle( hPort );
 
 	return true;

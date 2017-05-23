@@ -148,7 +148,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
 
     if( hDestFile && ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: SetFileTime( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
+        ERROR_PRINT( _T("CEUSER: ERROR: SetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
         OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
         ret = false;
         goto Cleanup;
