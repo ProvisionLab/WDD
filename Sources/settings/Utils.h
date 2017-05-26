@@ -4,7 +4,8 @@ namespace Utils
 {
     tstring MapToDestination( const tstring& Destination, const tstring& Path );
 	tstring MapToOriginal( const tstring& Destination, const tstring& Path );
-    bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index );
+    bool GetLastIndex( const tstring& DstPathNoIndex, int& Index );
+    bool GetIndexCount( const tstring& DstPathNoIndex, int& Count );
     tstring RemoveEndingSlash( const tstring& Dir );
     tstring ToLower( const tstring& str );
     bool DoesDirectoryExists( const tstring& Directory );
@@ -14,6 +15,12 @@ namespace Utils
 	tstring GetErrorString( DWORD err );
 	bool ExecuteProcess( const char* CommadLineA, BOOL Wait = TRUE );
     bool LogToFile( const std::string& log );
+    __int64 NowTime();
+    __int64 FileTimeToInt64( FILETIME FTime );
+    __int64 SubstructDays( __int64 Time, int Days );
+    __int64 AddMinutes( __int64 Time, int Minutes );
+    int TimeToMinutes( __int64 Time );
+    unsigned short Crc16( const unsigned char* Data, unsigned long Length, unsigned short crc = 0xFFFF );
 
 	class CPathDetails
 	{
@@ -26,5 +33,6 @@ namespace Utils
 		tstring Extension;
 		tstring Index;
 		bool Mapped;
+        bool Deleted;
 	};
 }

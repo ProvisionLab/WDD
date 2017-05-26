@@ -3,6 +3,9 @@
 #include "Utils.h"
 
 CSettings::CSettings()
+    : DeleteAfterDays(30)
+    , IgnoreSaveForMinutes(1)
+    , NumberOfCopies(10)
 {
 }
 
@@ -122,6 +125,16 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
 
         ExcludedExtensions.push_back( Utils::RemoveEndingSlash( strExtension ) );
     }
+
+    DeleteAfterDays = reader.GetInteger( _T("Cleanup"), _T("DeleteAfterDays"), 0 );
+    if( DeleteAfterDays <= 1 )
+        DeleteAfterDays = 1;
+    IgnoreSaveForMinutes = reader.GetInteger( _T("Cleanup"), _T("IgnoreSaveForMinutes"), 0 );
+    if( IgnoreSaveForMinutes <= 0 )
+        IgnoreSaveForMinutes = 0;
+    NumberOfCopies = reader.GetInteger( _T("Cleanup"), _T("NumberOfCopies"), 0 );
+    if( NumberOfCopies <= 0 )
+        NumberOfCopies = 1;
 
     return true;
 }

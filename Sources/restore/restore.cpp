@@ -134,7 +134,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 			tstring strName = ffd.cFileName;
             if( ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
             {
-				if( (All || !IsPath) && strName != _T(".") && strName != _T("..") )
+				if( (All || ! IsPath) && strName != _T(".") && strName != _T("..") )
 					if( ! IterateDirectories( Destination, Directory + _T("\\") + strName, Name, All, IsPath, Files ) )
 						return false;
 			}
@@ -239,15 +239,15 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
     FILETIME CreationTime, LastAccessTime, LastWriteTime;
     if( ! ::GetFileTime( hSrcFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("RESTORE: ERROR: GetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("RESTORE: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
+        ERROR_PRINT( _T("RESTORE: ERROR: GetFileTime( %s ) failed, error=%s\n"), strSrcPath.c_str(), Utils::GetLastErrorString().c_str() );
+        OutputDebugString( (tstring( _T("RESTORE: ERROR: GetFileTime failed: ") ) + strSrcPath + _T("\n")).c_str() );
         goto Cleanup;
     }
 
     if( ! ::SetFileTime( hDstFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
         ERROR_PRINT( _T("RESTORE: ERROR: SetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("RESTORE: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
+        OutputDebugString( (tstring( _T("RESTORE: ERROR: SetFileTime failed: ") ) + strDestPath + _T("\n")).c_str() );
         goto Cleanup;
     }
 

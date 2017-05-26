@@ -129,7 +129,8 @@
       <SuppressStartupBanner>false</SuppressStartupBanner>
     </Link>
     <PostBuildEvent>
-      <Command>if exist x:\ xcopy /Y $(TargetPath) x:\Max</Command>
+      <Command>if exist x:\ xcopy /Y $(TargetPath) x:\Max
+if exist x:\ xcopy /Y cetest.ini x:\Max</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -182,6 +183,9 @@
     <ClInclude Include="..\inc\usercommon.h" />
     <ClInclude Include="..\settings\Utils.h" />
     <ClInclude Include="test.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="cetest.ini" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

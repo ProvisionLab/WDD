@@ -7,6 +7,17 @@
 
 #define METHOD_CLOSE_HANDLE_IN_DRIVER 0
 
+CBackupCopy::CBackupCopy()
+    : Deleted(false)
+{
+}
+
+CBackupFile::CBackupFile()
+    : LastIndex(0)
+    , LastBackupTime(0)
+{
+}
+
 CBackupClient::CBackupClient()
     : _hCompletion(NULL)
     , _hPort(NULL)
@@ -67,22 +78,66 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     return false;
 }
 
-bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
+bool CBackupClient::CleanupFiles( const tstring& SrcPath )
+{
+    bool ret = false;
+    EnterCriticalSection( &_guardMap );
+
+    std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( SrcPath );
+
+    if( it == _mapBackupFiles.end() )
+        goto Cleanup;
+
+    CBackupFile& bf = it->second;
+
+    //1. Delete copies > Count
+    int delCount = bf.Copies.size() - _Settings.NumberOfCopies;
+    if( delCount > 0 )
+    {
+        for( int i=0; i<delCount; i++ )
+        {
+            DEBUG_PRINT( _T("CEUSER: DEBUG: CleanupFiles. Too much copies. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
+            DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
+        }
+        
+        for( int i=0; i<delCount; i++ )
+            bf.Copies.erase( bf.Copies.begin() );
+    }
+
+    //2. Delete expired copies > Time
+    __int64 int64Now = Utils::NowTime();
+    __int64 int64ExpiredTime = Utils::SubstructDays( int64Now, _Settings.DeleteAfterDays );
+    for( int i=0; i<bf.Copies.size(); i++ )
+    {
+        __int64 int64FileTime = bf.Copies[i].Time;
+        if( int64FileTime < int64ExpiredTime )
+        {
+            DEBUG_PRINT( _T("CEUSER: DEBUG: CleanupFiles. Too old copy. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
+            DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
+            bf.Copies.erase( bf.Copies.begin() + i );
+            i --;
+        }
+    }
+
+    ret = true;
+
+Cleanup:
+    LeaveCriticalSection( &_guardMap );
+    return ret;
+}
+
+bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, tstring& DstPath, unsigned short& DstCRC )
 {
     bool ret = false;
     tstring strMappedPathNoIndex = Utils::MapToDestination( _Settings.Destination, SrcPath );
 
-    int iIndex = 0;
-    if( ! Utils::GetLastIndex( strMappedPathNoIndex, iIndex ) )
-        return false;
-
-    iIndex ++;
     std::wstringstream oss;
     oss << strMappedPathNoIndex << _T(".");
     if( Delete )
         oss << _T("DELETED.");
-    oss << iIndex;
+    oss << Index;
     tstring strDestPath = oss.str();
+    DstPath = strDestPath;
 
     Utils::CPathDetails pd;
     if( ! pd.Parse( false, strDestPath ) )
@@ -91,14 +146,12 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         return false;
     }
 
-    //EnterCriticalSection( &_guardDestFile );
-
-    //::CopyFile( Path.c_str(), strDestPath.c_str(), TRUE );
     HANDLE hDestFile = NULL;
 
-    char Buffer[4*1024];
+    unsigned char Buffer[4*1024];
     DWORD BufferLength = sizeof(Buffer);
     BOOL bRead = TRUE;
+    unsigned short crc = 0xFFFF;
     while( bRead )
     {
         DWORD dwRead = 0;
@@ -108,7 +161,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
         if( ! bRead )
         {
             ERROR_PRINT( _T("CEUSER: ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
-            OutputDebugString( (tstring( _T("CEUSER: ERROR: ReadFile failed: ") ) + SrcPath).c_str() );
+            OutputDebugString( (tstring( _T("CEUSER: ERROR: ReadFile failed: ") ) + SrcPath + _T("\n")).c_str() );
             ret = false;
             goto Cleanup;
         }
@@ -127,19 +180,21 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
                 hDestFile = ::CreateFile( strDestPath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL );
                 if( hDestFile == INVALID_HANDLE_VALUE )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: CreateFile failed to open destination file %s, error=0x%X\n"), strDestPath.c_str(), ::GetLastError() );
-                    OutputDebugString( (tstring( _T("CEUSER: ERROR: CreateFile failed to open destination file: ") ) + strDestPath).c_str() );
+                    ERROR_PRINT( _T("CEUSER: ERROR: CreateFile failed to open destination file %s, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+                    OutputDebugString( (tstring( _T("CEUSER: ERROR: CreateFile failed to open destination file: ") ) + strDestPath + _T("\n")).c_str() );
                     ret = false;
                     goto Cleanup;
                 }
             }
 
+            crc = Utils::Crc16( Buffer, BufferLength, crc );
+
             DWORD dwWritten = 0;
             BOOL bWrite = ::WriteFile( hDestFile, Buffer, dwRead, &dwWritten, NULL );
             if( ! bWrite )
             {
-                ERROR_PRINT( _T("CEUSER: ERROR: WriteFile %s failed, error=0x%X\n"), SrcPath.c_str(), ::GetLastError() );
-                OutputDebugString( (tstring( _T("CEUSER: ERROR: WriteFile failed: ") ) + SrcPath).c_str() );
+                ERROR_PRINT( _T("CEUSER: ERROR: WriteFile %s failed, error=%s\n"), SrcPath.c_str(), Utils::GetLastErrorString().c_str() );
+                OutputDebugString( (tstring( _T("CEUSER: ERROR: WriteFile failed: ") ) + SrcPath + _T("\n")).c_str() );
                 ret = false;
                 goto Cleanup;
             }
@@ -150,27 +205,34 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, DWORD Src
 		}
     }
 
-    if( hDestFile && ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
+    if( hDestFile == NULL )
+    {
+        INFO_PRINT( _T("CEUSER: INFO: Skipping empty file %s\n"), SrcPath.c_str() );
+        return false;
+    }
+
+    if( ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
         ERROR_PRINT( _T("CEUSER: ERROR: SetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileTime failed: ") ) + strDestPath).c_str() );
+        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileTime failed: ") ) + strDestPath + _T("\n")).c_str() );
         ret = false;
         goto Cleanup;
     }
 
     //Copy attributes
-    if( hDestFile && ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
+    if( ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
     {
         ERROR_PRINT( _T("CEUSER: ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileAttributes failed: ") ) + strDestPath).c_str() );
+        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileAttributes failed: ") ) + strDestPath + _T("\n")).c_str() );
         ret = false;
         goto Cleanup;
     }
 
     ret = true;
+    DstCRC = crc;
 
-    INFO_PRINT( _T("CEUSER: INFO: Backup done OK: %s, index=%d%s\n"), SrcPath.c_str(), iIndex, Delete ? _T(" DELETED") : _T("") );
-    OutputDebugString( (tstring( _T("CEUSER: INFO Backup done OK: ") ) + SrcPath).c_str() );
+    INFO_PRINT( _T("CEUSER: INFO: Backup done OK: %s, index=%d%s\n"), SrcPath.c_str(), Index, Delete ? _T(" DELETED") : _T("") );
+    OutputDebugString( (tstring( _T("CEUSER: INFO Backup done OK: ") ) + SrcPath + _T("\n")).c_str() );
 
 Cleanup:
     if( hDestFile != NULL && hDestFile != INVALID_HANDLE_VALUE )
@@ -178,38 +240,99 @@ Cleanup:
         if( ! ::CloseHandle( hDestFile ) )
             ERROR_PRINT( _T("CEUSER: ERROR: CloseHandle hDestFile failed, hDestFile=%p"), hDestFile );
     }
-    else if( hDestFile == NULL )
-    {
-        INFO_PRINT( _T("CEUSER: INFO: Skipping empty file %s\n"), SrcPath.c_str() );
-    }
-
-    //LeaveCriticalSection( &_guardDestFile );
 
     return ret;
 }
 
-bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& Path, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
+bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
 {
     if( SrcAttribute & FILE_ATTRIBUTE_DIRECTORY )
     {
-        ERROR_PRINT( _T("CEUSER: WARNING: Directory attribute detected for %s. Skipping\n"), Path.c_str() );
+        ERROR_PRINT( _T("CEUSER: WARNING: Directory attribute detected for %s. Skipping\n"), SrcPath.c_str() );
         return true;
     }
 
-    tstring strLower = Utils::ToLower( Path );
+    tstring strLower = Utils::ToLower( SrcPath );
     if( strLower.substr( 0, _Settings.Destination.size() ) == _Settings.Destination )
     {
-        INFO_PRINT( _T("CEUSER: INFO: Skipping write to Destination=%s"), Path.c_str() );
+        INFO_PRINT( _T("CEUSER: INFO: Skipping write to Destination=%s\n"), SrcPath.c_str() );
         return true;
     }
 
     if( IsIncluded( strLower ) )
     {
-        return DoBackup( hFile, Path, SrcAttribute, Delete, CreationTime, LastAccessTime, LastWriteTime );
+        int Index = 1;
+
+        __int64 LastBackupTime = 0;
+        unsigned short LastCRC = 0;
+
+        EnterCriticalSection( &_guardMap );
+        std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( strLower );
+        if( it != _mapBackupFiles.end() )
+        {
+            Index = it->second.LastIndex + 1;
+            if( it->second.LastBackupTime )
+                LastBackupTime = it->second.LastBackupTime;
+            LastCRC = it->second.LastBackupCRC;
+        }
+        LeaveCriticalSection( &_guardMap );
+
+        if( LastBackupTime && Utils::AddMinutes( LastBackupTime, _Settings.IgnoreSaveForMinutes ) > Utils::NowTime() )
+        {
+            INFO_PRINT( _T("CEUSER: INFO: Skipping write %s. Too frequently. Wait %d minute(s)\n"), SrcPath.c_str(), _Settings.IgnoreSaveForMinutes + 1 - Utils::TimeToMinutes( Utils::NowTime() - LastBackupTime ) );
+            return true;
+        }
+
+        tstring DstPath;
+        unsigned short DstCRC = 0;
+        bool ret = DoBackup( hFile, strLower, Index, SrcAttribute, Delete, CreationTime, LastAccessTime, LastWriteTime, DstPath, DstCRC );
+        if( ret )
+        {
+            if( LastCRC == DstCRC )
+            {
+                if( ! ::DeleteFile( DstPath.c_str() ) )
+                {
+                    ERROR_PRINT( _T("CEUSER: ERROR: BackupFile: Duplication/DeleteFile: Failed to delete %s\n"), DstPath.c_str() );
+		            return false;
+                }
+                INFO_PRINT( _T("CEUSER: INFO: Skipping write %s. Same content. CRC: %x\n"), SrcPath.c_str(), LastCRC );
+                return true;
+            }
+
+            CBackupCopy bc;
+            bc.Index = Index;
+            bc.Time = Utils::FileTimeToInt64( LastWriteTime );
+            bc.Deleted = Delete;
+
+            EnterCriticalSection( &_guardMap );
+            std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( strLower );
+            if( it == _mapBackupFiles.end() )
+            {
+                CBackupFile bfNew;
+                bfNew.DstPath = Utils::ToLower( Utils::MapToDestination( _Settings.Destination, strLower ) );
+                _mapBackupFiles[strLower] = bfNew;
+            }
+
+            it = _mapBackupFiles.find( strLower );
+            CBackupFile& bf = it->second;
+
+            if( Index > bf.LastIndex )
+                bf.LastIndex = Index;
+            bf.Copies.push_back( bc );
+            std::sort( bf.Copies.begin(), bf.Copies.end() );
+            bf.LastBackupTime = Utils::NowTime();
+            bf.LastBackupCRC = DstCRC;
+
+            LeaveCriticalSection( &_guardMap );
+
+            CleanupFiles( strLower );
+        }
+
+        return ret;
     }
     else
     {
-        DEBUG_PRINT( _T("CEUSER: DEBUG: Skipping NOT Included file=%s"), Path.c_str() );
+        DEBUG_PRINT( _T("CEUSER: DEBUG: Skipping NOT Included file=%s"), SrcPath.c_str() );
         return true;
     }
 
@@ -335,12 +458,15 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
 
     if( ! Utils::CreateDirectory( _Settings.Destination.c_str() ) )
     {
-        error = _T("Failed to create Destination directory: ") + _Settings.Destination;
+        error = _T("Failed to create Destination directory: ") + _Settings.Destination + _T(", error=") + Utils::GetLastErrorString();
         ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T("\n") ).c_str() );
         return false;
     }
 
-	InitializeCriticalSection( &_guardDestFile );
+    InitializeCriticalSection( &_guardMap );
+
+    if( ! ScanRepositoryData() )
+        return false;
 
     //  Open a communication channel to the filter
     INFO_PRINT( _T("CEUSER: INFO: Connecting to the filter ...\n") );
@@ -412,7 +538,7 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     }
 
     ret = true;
-    OutputDebugString( _T("CEUSER: INFO: Started") );
+    OutputDebugString( _T("CEUSER: INFO: Started\n") );
 
     if( async )
         return ret;
@@ -435,5 +561,124 @@ bool CBackupClient::Stop()
     ::CloseHandle( _hCompletion );
     _hPort = NULL;
     _hCompletion = NULL;
+
+    return true;
+}
+
+bool CBackupClient::IterateDirectories( const tstring& Destination, const tstring& Directory )
+{	
+    if( Utils::DoesDirectoryExists( Directory ) )
+    {
+		WIN32_FIND_DATA ffd = {0};
+        HANDLE hFind = INVALID_HANDLE_VALUE;
+		tstring strSearchFor = Directory + _T("\\*");
+
+        hFind = ::FindFirstFile( strSearchFor.c_str(), &ffd );
+        if( hFind == INVALID_HANDLE_VALUE )
+        {
+			DWORD status = ::GetLastError();
+			if( status != ERROR_FILE_NOT_FOUND )
+			{
+				ERROR_PRINT( _T("CEUSER: ERROR: FindFirstFile failed in %s, error=%s\n"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
+				return false;
+			}
+			else
+				return true;
+        }
+
+        do
+        {
+			tstring strName = ffd.cFileName;
+            if( ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
+            {
+				if(  strName != _T(".") && strName != _T("..") )
+					if( ! IterateDirectories( Destination, Directory + _T("\\") + strName ) )
+						return false;
+			}
+			else
+			{
+				tstring DstPath = Directory + _T("\\") + strName;
+                DstPath = Utils::ToLower( DstPath );
+                Utils::CPathDetails pd;
+                if( ! pd.Parse( true, DstPath ) )
+                {
+                    ERROR_PRINT( _T("CEUSER: ERROR: IterateDirectories: Failed to parse %s\n"), DstPath.c_str() );
+                    return false;
+                }
+                int Index = std::stoi(pd.Index);
+
+                tstring SrcPath = Utils::ToLower( Utils::MapToOriginal( Destination, Directory + _T("\\") + pd.Name ) );
+                tstring DstPathNoIndex = Utils::ToLower( Directory + _T("\\") + pd.Name );
+                std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( SrcPath );
+                CBackupFile bf;
+                if( it != _mapBackupFiles.end() )
+                {
+                    bf = _mapBackupFiles[SrcPath];
+                }
+                else
+                {
+                    bf.DstPath = DstPathNoIndex;
+                }
+
+                HANDLE hSrcFile = ::CreateFile( DstPath.c_str(), FILE_READ_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
+                if( hSrcFile == INVALID_HANDLE_VALUE )
+                {
+                    ERROR_PRINT( _T("CEUSER: ERROR: IterateDirectories: CreateFile: Failed to delete %s\n"), DstPath.c_str() );
+                    OutputDebugString( (tstring( _T("CEUSER: ERROR: IterateDirectories: CreateFile: Failed to delete: ") ) + DstPath + _T("\n")).c_str() );
+		            return false;
+                }
+
+                FILETIME CreationTime, LastAccessTime, LastWriteTime;
+                BOOL ret = ::GetFileTime( hSrcFile, &CreationTime, &LastAccessTime, &LastWriteTime );
+                ::CloseHandle( hSrcFile );
+                if( ! ret )
+                {
+                    ERROR_PRINT( _T("CEUSER: ERROR: IterateDirectories: GetFileTime( %s ) failed, error=%s\n"), DstPath.c_str(), Utils::GetLastErrorString().c_str() );
+                    OutputDebugString( (tstring( _T("CEUSER: ERROR: GetFileTime failed: ") ) + DstPath + _T("\n")).c_str() );
+                    return false;
+                }
+
+                CBackupCopy bc;
+                bc.Index = Index;
+                bc.Time = Utils::FileTimeToInt64( LastWriteTime );
+                bc.Deleted = pd.Deleted;
+                bf.Copies.push_back( bc );
+                if( Index > bf.LastIndex )
+                    bf.LastIndex = Index;
+
+                _mapBackupFiles[SrcPath] = bf;
+            }
+        } while( ::FindNextFile( hFind, &ffd ) );
+
+        ::FindClose( hFind );
+    }
+
+	return true;
+}
+
+bool CBackupClient::ScanRepositoryData()
+{
+    //Fill internal map existing backup files information
+    if( ! IterateDirectories( _Settings.Destination, _Settings.Destination ) )
+        return false;
+
+    return true;
+}
+
+bool CBackupClient::DeleteBackup( const tstring& DstPath, int Index, bool Deleted )
+{
+    std::wstringstream oss;
+    oss << DstPath << _T(".");
+    if( Deleted )
+        oss << _T("DELETED.");
+    oss << Index;
+    tstring strDestPath = oss.str();
+
+    if( ! ::DeleteFile( strDestPath.c_str() ) )
+    {
+        ERROR_PRINT( _T("CEUSER: ERROR: Delete: DeleteFile: Failed to delete %s\n"), strDestPath.c_str() );
+		return false;
+    }
+
     return true;
 }

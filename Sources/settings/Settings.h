@@ -11,6 +11,9 @@ public:
     std::vector<tstring> IncludedDirectories;
     std::vector<tstring> ExcludedDirectories;
     std::vector<tstring> ExcludedExtensions;
+    int DeleteAfterDays;
+    int IgnoreSaveForMinutes;
+    int NumberOfCopies;
 
 	CSettings();
 	virtual ~CSettings() {};

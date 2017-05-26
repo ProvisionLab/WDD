@@ -44,14 +44,14 @@ tstring MapToOriginal( const tstring& Destination, const tstring& Path )
     1\1.txt   -> 1\N\1.txt
     1\1\1.txt -> 1\1\N\1.txt
 */
-bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index )
+bool GetLastIndex( const tstring& DstPathNoIndex, int& Index )
 {
-    Index = 0;
+    bool ret = false;
 
     CPathDetails pd;
-    if( ! pd.Parse( false, MappedPathNoIndex ) )
+    if( ! pd.Parse( false, Utils::ToLower( DstPathNoIndex ) ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), MappedPathNoIndex.c_str() );
+        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), DstPathNoIndex.c_str() );
         return false;
     }
 
@@ -70,7 +70,7 @@ bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index )
         {
             if( ! (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
             {
-				tstring strName = ffd.cFileName;
+				tstring strName = Utils::ToLower( ffd.cFileName );
                 if( strName.substr( 0, pd.Name.size() + 1 ) == pd.Name + _T(".") )
                 {
                     TCHAR* point = _tcsrchr( ffd.cFileName, _T('.') );
@@ -81,7 +81,10 @@ bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index )
                         {
                             int iIndex = _tstoi( strIndex.c_str() );
                             if( iIndex > Index )
+                            {
                                 Index = iIndex;
+                                ret = true;
+                            }
                         }
                     }
                 }
@@ -91,7 +94,57 @@ bool GetLastIndex( const tstring& MappedPathNoIndex, int& Index )
         ::FindClose( hFind );
     }
 
-    return true;
+    return ret;
+}
+
+bool GetIndexCount( const tstring& DstPathNoIndex, int& Count )
+{
+    bool ret = false;
+    Count = 0;
+
+    CPathDetails pd;
+    if( ! pd.Parse( false, Utils::ToLower( DstPathNoIndex ) ) )
+    {
+        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), DstPathNoIndex.c_str() );
+        return false;
+    }
+
+    if( DoesDirectoryExists( pd.Directory ) )
+    {
+        WIN32_FIND_DATA ffd;
+        HANDLE hFind = INVALID_HANDLE_VALUE;
+        hFind = ::FindFirstFile( (pd.Directory + _T("\\*")).c_str(), &ffd );
+        if( hFind == INVALID_HANDLE_VALUE )
+        {
+            ERROR_PRINT( _T("ERROR: FindFirstFile failed %s\n"), pd.Directory.c_str() );
+            return false;
+        }
+
+        do
+        {
+            if( ! (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
+            {
+				tstring strName = Utils::ToLower( ffd.cFileName );
+                if( strName.substr( 0, pd.Name.size() + 1 ) == pd.Name + _T(".") )
+                {
+                    TCHAR* point = _tcsrchr( ffd.cFileName, _T('.') );
+                    if( point )
+                    {
+                        tstring strIndex = point + 1;
+                        if( strIndex.size() )
+                        {
+                            Count ++;
+                            ret = true;
+                        }
+                    }
+                }
+            }
+        } while( ::FindNextFile( hFind, &ffd ) );
+
+        ::FindClose( hFind );
+    }
+
+    return ret;
 }
 
 tstring RemoveEndingSlash( const tstring& Dir )
@@ -141,7 +194,7 @@ bool CreateDirectory( const tstring& Directory )
             {
                 if( ::GetLastError() != ERROR_ALREADY_EXISTS )
                 {
-                    ERROR_PRINT( _T("ERROR: CreateDirectory %s failed, error=0x%X\n"), strSubDirectory.c_str(), ::GetLastError() );
+                    ERROR_PRINT( _T("ERROR: CreateDirectory %s failed, error=%s\n"), strSubDirectory.c_str(), Utils::GetLastErrorString().c_str() );
                     return false;
                 }
             }
@@ -211,6 +264,7 @@ tstring GetErrorString( DWORD err )
 
 CPathDetails::CPathDetails()
 	: Mapped(false)
+    , Deleted(false)
 {
 }
 
@@ -233,10 +287,17 @@ bool CPathDetails::Parse( bool aMapped, const tstring& Path )
 			return false;
 
 		Index = Name.substr( pos + 1 );
-		Name = Name.substr( 0, pos );
-		pos = Name.rfind( pos-1, _T('.') ) ;
+        Name = Name.substr( 0, pos );
+        pos = Name.rfind( _T(".deleted"), pos-1 ) ;
+        if( pos != tstring::npos )
+        {
+            Deleted = true;
+    		Name = Name.substr( 0, pos );
+        }
+
+        pos = Name.rfind( _T('.'), pos-1 ) ;
 		if( pos != tstring::npos )
-			Extension = Name.substr( pos + 1 );
+            Extension = Name.substr( pos + 1 );
 	}
 	else
 	{
@@ -300,6 +361,63 @@ bool LogToFile( const std::string& log )
 Cleanup:
     LeaveCriticalSection( &g_guardLogFile );
     return ret;
+}
+
+__int64 FileTimeToInt64( FILETIME FTime )
+{
+    __int64 int64Time = *((__int64*)&FTime);
+    return int64Time;
+}
+
+__int64 NowTime()
+{
+    SYSTEMTIME stNow;
+    FILETIME ftNow;
+    ::GetSystemTime( &stNow );
+    ::SystemTimeToFileTime( &stNow, &ftNow );
+    __int64 int64Now = *((__int64*)&ftNow);
+
+    return int64Now;
+}
+
+__int64 SubstructDays( __int64 Time, int Days )
+{
+    // 100-nanosecond intervals. 1 second = 10 000 000 FILETIME ticks
+    __int64 int64Days = (__int64)Days * 24 * 60 * 60 * 10000000;
+    __int64 int64Result = Time - int64Days;
+
+    return int64Result;
+}
+
+__int64 AddMinutes( __int64 Time, int Minutes )
+{
+    // 100-nanosecond intervals. 1 second = 10 000 000 FILETIME ticks
+    __int64 int64Minutes = (__int64)Minutes * 60 * 10000000;
+    __int64 int64Result = Time + int64Minutes;
+
+    return int64Result;
+}
+
+int TimeToMinutes( __int64 Time )
+{
+    __int64 ret = Time / 10000000 / 60;
+
+    return (int)ret;
+}
+
+unsigned short Crc16( const unsigned char* Data, unsigned long Length, unsigned short PreviousCrc )
+{
+    unsigned char x;
+    unsigned short crc = PreviousCrc;
+
+    while( Length-- )
+    {
+        x = crc >> 8 ^ *Data ++;
+        x ^= x>>4;
+        crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
+    }
+
+    return crc;
 }
 
 }
