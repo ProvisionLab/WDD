@@ -9,7 +9,7 @@
 
 #define SVC_ERROR                        ((DWORD)0xC0020001L)
 
-CBackupClient* _pService = NULL;
+CBackupClient* g_pService = NULL;
 SERVICE_STATUS g_Status;
 SERVICE_STATUS_HANDLE g_StatusHandle;
 LPTSTR g_Name = SERVICE_NAME;
@@ -70,10 +70,10 @@ void WINAPI ServiceCtrlHandler( DWORD dwCtrl )
             try
             {
                 SetStatus( SERVICE_STOP_PENDING );
-                _pService->Stop();
+                g_pService->Stop();
                 SetStatus( SERVICE_STOPPED );
-                delete _pService;
-                _pService = NULL;
+                delete g_pService;
+                g_pService = NULL;
             }
             catch (...)
             {
@@ -82,10 +82,10 @@ void WINAPI ServiceCtrlHandler( DWORD dwCtrl )
             }
             break;
         case SERVICE_CONTROL_SHUTDOWN:
-            _pService->Stop();
+            g_pService->Stop();
             SetStatus( SERVICE_STOPPED );
-            delete _pService;
-            _pService = NULL;
+            delete g_pService;
+            g_pService = NULL;
             break;
         default:
             break;
@@ -113,7 +113,7 @@ void WINAPI ServiceMain( DWORD dwArgc, LPTSTR* pszArgv )
         {
             SetStatus(SERVICE_START_PENDING);
             tstring error;
-            if( _pService->Run( g_StrIniPath, error, true ) )
+            if( g_pService->Run( g_StrIniPath, error, true ) )
             {
                 SetStatus(SERVICE_RUNNING);
             }
@@ -123,8 +123,8 @@ void WINAPI ServiceMain( DWORD dwArgc, LPTSTR* pszArgv )
                 DWORD dwError = ::GetLastError();
                 WriteErrorLogEntry( error.c_str(), dwError );
                 SetStatus(SERVICE_STOPPED, dwError);
-                delete _pService;
-                _pService = NULL;
+                delete g_pService;
+                g_pService = NULL;
             }
         }
         catch (...)
@@ -157,7 +157,7 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
         g_StrIniPath = argv[2];
     }
 
-    _pService = new CBackupClient();
+    g_pService = new CBackupClient();
     SERVICE_TABLE_ENTRY serviceTable[] = { { g_Name, ServiceMain }, { NULL, NULL } };
     StartServiceCtrlDispatcher( serviceTable );
 

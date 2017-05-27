@@ -144,7 +144,7 @@ bool CTest::Run( const tstring& IniPath )
 	for( size_t i=0; i<_Settings.IncludedDirectories.size(); i++ )
 	{
     	tstring strPath = _Settings.IncludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
-    	for( size_t j=0; j<_Settings.NumberOfCopies * 2; j++ )
+    	for( int j=0; j<_Settings.NumberOfCopies * 2; j++ )
 	    {
 		    std::wstringstream ossContent;
 		    ossContent << _T("NumberOfCopies check") << _T(".") << j;
@@ -181,7 +181,7 @@ bool CTest::Run( const tstring& IniPath )
 	for( size_t i=0; i<_Settings.IncludedDirectories.size(); i++ )
 	{
     	tstring strPath = _Settings.IncludedDirectories[i] + _T("\\") + _T("fileTmp.txt");
-    	for( size_t j=0; j<_Settings.NumberOfCopies / 2; j++ )
+    	for( int j=0; j<_Settings.NumberOfCopies / 2; j++ )
 	    {
 	    	if( ! WriteContent( strPath, _T("NumberOfCopies check") ) )
 			    goto Cleanup;

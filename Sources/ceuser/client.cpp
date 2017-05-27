@@ -94,20 +94,20 @@ bool CBackupClient::CleanupFiles( const tstring& SrcPath )
     int delCount = bf.Copies.size() - _Settings.NumberOfCopies;
     if( delCount > 0 )
     {
-        for( int i=0; i<delCount; i++ )
+        for( int i=0; i < delCount; i++ )
         {
             DEBUG_PRINT( _T("CEUSER: DEBUG: CleanupFiles. Too much copies. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
             DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
         }
         
-        for( int i=0; i<delCount; i++ )
+        for( int i=0; i < delCount; i++ )
             bf.Copies.erase( bf.Copies.begin() );
     }
 
     //2. Delete expired copies > Time
     __int64 int64Now = Utils::NowTime();
     __int64 int64ExpiredTime = Utils::SubstructDays( int64Now, _Settings.DeleteAfterDays );
-    for( int i=0; i<bf.Copies.size(); i++ )
+    for( size_t i=0; i < bf.Copies.size(); i++ )
     {
         __int64 int64FileTime = bf.Copies[i].Time;
         if( int64FileTime < int64ExpiredTime )
