@@ -1,5 +1,6 @@
 #include "usercommon.h"
 #include "client.h"
+#include "log.h"
 
 VOID Usage ()
 {
@@ -34,7 +35,9 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
         strIniPath = argv[2];
     }
 
-    _tprintf( _T("CEUSER Starting\n") );
+    CLog::instance().Init( _T("ceuser.log") );
+
+    TRACE_INFO( _T("CEUSER Starting") );
 
 	CBackupClient client;
 
@@ -42,6 +45,6 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
     if( ! client.Run( strIniPath, error ) )
         return 1;
 
-    _tprintf( _T("CEUSER Exit") );
+    TRACE_INFO( _T("CEUSER Exit") );
     return 0;
 }

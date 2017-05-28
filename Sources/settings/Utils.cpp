@@ -11,7 +11,7 @@ tstring MapToDestination( const tstring& Destination, const tstring& Path )
     size_t pos = strMapped.find( _T(':') );
     if( pos == tstring::npos )
     {
-        ERROR_PRINT( _T("ERROR: MapToDestination failed: Disk not found in the path %s\n"), Path.c_str() );
+        TRACE_ERROR( _T("MapToDestination failed: Disk not found in the path %s"), Path.c_str() );
         return false;
     }
 
@@ -28,7 +28,7 @@ tstring MapToOriginal( const tstring& Destination, const tstring& Path )
     size_t pos = strMapped.find( _T('\\') );
     if( pos == tstring::npos || pos != 1 )
     {
-        ERROR_PRINT( _T("ERROR: MapToOriginal failed: Disk not found in the path %s\n"), Path.c_str() );
+        TRACE_ERROR( _T("MapToOriginal failed: Disk not found in the path %s"), Path.c_str() );
         return false;
     }
 
@@ -51,7 +51,7 @@ bool GetLastIndex( const tstring& DstPathNoIndex, int& Index )
     CPathDetails pd;
     if( ! pd.Parse( false, Utils::ToLower( DstPathNoIndex ) ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), DstPathNoIndex.c_str() );
+        TRACE_ERROR( _T("Failed to parse %s"), DstPathNoIndex.c_str() );
         return false;
     }
 
@@ -62,7 +62,7 @@ bool GetLastIndex( const tstring& DstPathNoIndex, int& Index )
         hFind = ::FindFirstFile( (pd.Directory + _T("\\*")).c_str(), &ffd );
         if( hFind == INVALID_HANDLE_VALUE )
         {
-            ERROR_PRINT( _T("ERROR: FindFirstFile failed %s\n"), pd.Directory.c_str() );
+            TRACE_ERROR( _T("FindFirstFile failed %s"), pd.Directory.c_str() );
             return false;
         }
 
@@ -105,7 +105,7 @@ bool GetIndexCount( const tstring& DstPathNoIndex, int& Count )
     CPathDetails pd;
     if( ! pd.Parse( false, Utils::ToLower( DstPathNoIndex ) ) )
     {
-        ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), DstPathNoIndex.c_str() );
+        TRACE_ERROR( _T("Failed to parse %s"), DstPathNoIndex.c_str() );
         return false;
     }
 
@@ -116,7 +116,7 @@ bool GetIndexCount( const tstring& DstPathNoIndex, int& Count )
         hFind = ::FindFirstFile( (pd.Directory + _T("\\*")).c_str(), &ffd );
         if( hFind == INVALID_HANDLE_VALUE )
         {
-            ERROR_PRINT( _T("ERROR: FindFirstFile failed %s\n"), pd.Directory.c_str() );
+            TRACE_ERROR( _T("FindFirstFile failed %s"), pd.Directory.c_str() );
             return false;
         }
 
@@ -194,7 +194,7 @@ bool CreateDirectory( const tstring& Directory )
             {
                 if( ::GetLastError() != ERROR_ALREADY_EXISTS )
                 {
-                    ERROR_PRINT( _T("ERROR: CreateDirectory %s failed, error=%s\n"), strSubDirectory.c_str(), Utils::GetLastErrorString().c_str() );
+                    TRACE_ERROR( _T("CreateDirectory %s failed, error=%s"), strSubDirectory.c_str(), Utils::GetLastErrorString().c_str() );
                     return false;
                 }
             }
@@ -223,7 +223,7 @@ bool RemoveDirectory( const tstring& Directory )
 	int ret = ::SHFileOperationW( &SHFileOp );
 	if( ret != 0 )
 	{
-		ERROR_PRINT( _T("ERROR: RemoveDirectory %s failed, status=%s\n"), Directory.c_str(), Utils::GetErrorString( ret ).c_str() );
+		TRACE_ERROR( _T("RemoveDirectory %s failed, status=%s"), Directory.c_str(), Utils::GetErrorString( ret ).c_str() );
 		return false;
 	}
 
@@ -319,7 +319,7 @@ bool ExecuteProcess( const char* CommadLineA, BOOL Wait )
 
 	if( ! ::CreateProcessA( NULL, (LPSTR)CommadLineA, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi ) )
 	{
-		ERROR_PRINT( _T("ERROR: ExecuteProcess(%S) failed. status=%s\n"), CommadLineA, Utils::GetLastErrorString().c_str() );
+		TRACE_ERROR( _T("ExecuteProcess(%S) failed. status=%s"), CommadLineA, Utils::GetLastErrorString().c_str() );
 		return false;
 	}
 
@@ -331,36 +331,6 @@ bool ExecuteProcess( const char* CommadLineA, BOOL Wait )
     ::CloseHandle( pi.hThread );
 
 	return true;
-}
-
-static bool g_LogFileInitialized = false;
-static CRITICAL_SECTION g_guardLogFile;
-bool LogToFile( const std::string& log )
-{
-    bool ret = false;
-
-    if( ! g_LogFileInitialized )
-    {
-        InitializeCriticalSection( &g_guardLogFile );
-        g_LogFileInitialized = true;
-    }
-
-    EnterCriticalSection( &g_guardLogFile );
-	FILE* f = NULL;
-	fopen_s( &f, "c:\\ce.log", "a" );
-	if( ! f )
-		goto Cleanup;
-
-    size_t iWritten = fwrite( log.c_str(), 1, log.size(), f );
-	if( iWritten <= 0 )
-		goto Cleanup;
-
-    fclose( f );
-    ret = true;
-
-Cleanup:
-    LeaveCriticalSection( &g_guardLogFile );
-    return ret;
 }
 
 __int64 FileTimeToInt64( FILETIME FTime )

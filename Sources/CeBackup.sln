@@ -27,6 +27,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cetest", "cetest\cetest.vcx
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ceservice", "ceservice\ceservice.vcxproj", "{C3D9E303-39CB-4A2E-93A3-04177CD85319}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C1E8BFF0-F318-4EF2-B746-47F3CB8FFB31} = {C1E8BFF0-F318-4EF2-B746-47F3CB8FFB31}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ceuserlib", "ceuserlib\ceuserlib.vcxproj", "{86117D1D-5C30-4B9D-9C9D-0936BBE52F48}"
 EndProject

@@ -16,7 +16,7 @@ bool CSettings::Init( const std::wstring& IniPath, tstring& error )
 	if( reader.ParseError() < 0 )
     {
         error = _T("Can't find/load ini file '") + IniPath + _T("'");
-        ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+        TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
         return false;
     }
 
@@ -30,7 +30,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
     if( Destination.length() == 0 )
     {
         error = _T("[Destination] Path not found in '") + IniPath + _T("'");
-        ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+        TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
         return false;
     }
 
@@ -47,7 +47,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
         if( strFile.length() == 0 )
         {
             error = _T("[IncludeFile] '") + oss.str() + _T("' not found in '") + IniPath + _T("'");
-            ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+            TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
             return false;
         }
 
@@ -65,7 +65,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
         if( strDirectory.length() == 0 )
         {
             error = _T("[IncludeDirectory] '") + oss.str() + _T("' not found in '") + IniPath + _T("'");
-            ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+            TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
             return false;
         }
 
@@ -83,7 +83,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
         if( strFile.length() == 0 )
         {
             error = _T("[ExcludeFile] '") + oss.str() + _T("' not found in '") + IniPath + _T("'");
-            ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+            TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
             return false;
         }
 
@@ -101,7 +101,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
         if( strDirectory.length() == 0 )
         {
             error = _T("[ExcludeDirectory] '") + oss.str() + _T("' not found in '") + IniPath + _T("'");
-            ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+            TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
             return false;
         }
 
@@ -119,7 +119,7 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
         if( strExtension.length() == 0 )
         {
             error = _T("[ExcludeExtension] '") + oss.str() + _T("' not found in '") + IniPath + _T("'");
-            ERROR_PRINT( ( tstring(_T("ERROR: Settings: ")) + error + _T("\n")).c_str() );
+            TRACE_ERROR( ( tstring(_T("Settings: ")) + error).c_str() );
             return false;
         }
 

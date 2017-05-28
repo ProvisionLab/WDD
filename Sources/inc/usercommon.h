@@ -20,13 +20,4 @@ typedef std::wstring tstring;
 
 #pragma warning( disable : 4242 )  
 #include <algorithm>
-
-#define ERROR_PRINT _tprintf
-#define INFO_PRINT  _tprintf
-#ifdef _DEBUG
-	#define DEBUG_PRINT
-	#define TMP_PRINT   _tprintf
-#else
-	#define DEBUG_PRINT
-	#define TMP_PRINT
-#endif
+#include "log.h"

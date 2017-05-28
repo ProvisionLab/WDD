@@ -13,7 +13,7 @@ bool CRestore::Run( const tstring& IniPath, const tstring& Command, const tstrin
 {
     if( IsRunning() )
     {
-        ERROR_PRINT( _T("RESTORE: One instance of application is already running\n") );
+        TRACE_ERROR( _T("RESTORE: One instance of application is already running") );
         return false;
     }
 
@@ -32,7 +32,7 @@ bool CRestore::Run( const tstring& IniPath, const tstring& Command, const tstrin
 		return Restore( settings.Destination, Path, RestoreToDir );
 	else
 	{
-		ERROR_PRINT( _T("Unknown command") );
+		TRACE_ERROR( _T("Unknown command") );
 		return false;
 	}
 
@@ -65,7 +65,7 @@ bool CRestore::ListFiles( const tstring& Destination, bool All, const tstring& P
 	{
 		if( ! pd.Parse( false, Path ) )
 		{
-			ERROR_PRINT( _T("ERROR: Failed to parse %s\n"), Path.c_str() );
+			TRACE_ERROR( _T("Failed to parse %s"), Path.c_str() );
 			return false;
 		}
 
@@ -82,21 +82,21 @@ bool CRestore::ListFiles( const tstring& Destination, bool All, const tstring& P
 	{
 		if( arrFiles.size() )
 		{
-			INFO_PRINT( _T("Found matches(%d):\n"), (int)arrFiles.size() );
+			TRACE_INFO( _T("Found matches(%d):"), (int)arrFiles.size() );
 			for( size_t i=0; i<arrFiles.size(); i++ )
 			{
-				INFO_PRINT( _T("%s\n"), arrFiles[i].c_str() );
+				TRACE_INFO( _T("%s"), arrFiles[i].c_str() );
 			}
 		}
 		else
 		{
 			if( All )
 			{
-				INFO_PRINT( _T("No files where backed up yet\n") );
+				TRACE_INFO( _T("No files where backed up yet") );
 			}
 			else
 			{
-				INFO_PRINT( _T("No files where found with name '%s'\n"), Path.c_str() );
+				TRACE_INFO( _T("No files where found with name '%s'"), Path.c_str() );
 			}
 		}
 	}
@@ -122,7 +122,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 			DWORD status = ::GetLastError();
 			if( status != ERROR_FILE_NOT_FOUND )
 			{
-				ERROR_PRINT( _T("RESTORE: ERROR: FindFirstFile failed in %s, error=%s\n"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
+				TRACE_ERROR( _T("RESTORE: FindFirstFile failed in %s, error=%s"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
 				return false;
 			}
 			else
@@ -164,7 +164,7 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
     HANDLE hDstFile = NULL;
 	if( Path.rfind( _T('.') ) == tstring::npos )
 	{
-        ERROR_PRINT( _T("RESTORE: ERROR: Path without index was provided: %s\n"), Path.c_str() );
+        TRACE_ERROR( _T("RESTORE: Path without index was provided: %s"), Path.c_str() );
         return false;
 	}
 
@@ -180,14 +180,14 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
     Utils::CPathDetails pd;
 	if( ! pd.Parse( true, strPath ) )
 	{
-        ERROR_PRINT( _T("RESTORE: ERROR: Failed parse provided path: %s\n"), Path.c_str() );
+        TRACE_ERROR( _T("RESTORE: Failed parse provided path: %s"), Path.c_str() );
         return false;
 	}
 
 	int iIndex = _tstoi( pd.Index.c_str() );
 	if( iIndex <= 0 )
 	{
-        ERROR_PRINT( _T("RESTORE: ERROR: No Index was found in provided path: %s\n"), Path.c_str() );
+        TRACE_ERROR( _T("RESTORE: No Index was found in provided path: %s"), Path.c_str() );
         return false;
 	}
 
@@ -195,7 +195,7 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
     HRESULT hr = ::FilterConnectCommunicationPort( RESTORE_PORT_NAME, 0, NULL, 0, NULL, &hPort );
     if( IS_ERROR( hr ) )
     {
-        ERROR_PRINT( _T("RESTORE: ERROR: Failed connect to RESTORE filter port: 0x%08x\n"), hr );
+        TRACE_ERROR( _T("RESTORE: Failed connect to RESTORE filter port: 0x%08x"), hr );
         return false;
     }
 
@@ -212,45 +212,42 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
 		strDestPath = pd.Directory + _T("\\") + pd.Name;
 	}
 
-	INFO_PRINT( _T("RESTORE: INFO: Copying %s to %s\n"), strSrcPath.c_str(), strDestPath.c_str() );
+	TRACE_INFO( _T("RESTORE: Copying %s to %s"), strSrcPath.c_str(), strDestPath.c_str() );
 	if( ! ::CopyFile( strSrcPath.c_str(), strDestPath.c_str(), FALSE ) )
     {
 		if( RestoreToDir.size() )
-			ERROR_PRINT( _T("RESTORE: ERROR: Failed to restore file '%s' to _restore_to_ directory '%s'. Error: %s\n"), strDestPath.c_str(), RestoreToDir.c_str(), Utils::GetLastErrorString().c_str() );
+			TRACE_ERROR( _T("RESTORE: Failed to restore file '%s' to _restore_to_ directory '%s'. Error: %s"), strDestPath.c_str(), RestoreToDir.c_str(), Utils::GetLastErrorString().c_str() );
 		else
-			ERROR_PRINT( _T("RESTORE: ERROR: Failed to restore file '%s'. Error: %s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+			TRACE_ERROR( _T("RESTORE: Failed to restore file '%s'. Error: %s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
         goto Cleanup;
     }
 
     hSrcFile = ::CreateFile( strSrcPath.c_str(), FILE_READ_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
     if( hSrcFile == INVALID_HANDLE_VALUE )
     {
-        ERROR_PRINT( _T("RESTORE: ERROR: Restore: CreateFile: Failed to delete %s\n"), strSrcPath.c_str() );
+        TRACE_ERROR( _T("RESTORE: Restore: CreateFile: Failed to delete %s"), strSrcPath.c_str() );
 		goto Cleanup;
     }
 
     hDstFile = ::CreateFile( strDestPath.c_str(), FILE_WRITE_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
     if( hDstFile == INVALID_HANDLE_VALUE )
     {
-        ERROR_PRINT( _T("RESTORE: ERROR: Restore: CreateFile: Failed to delete %s\n"), strDestPath.c_str() );
+        TRACE_ERROR( _T("RESTORE: Restore: CreateFile: Failed to delete %s"), strDestPath.c_str() );
 		goto Cleanup;
     }
 
     FILETIME CreationTime, LastAccessTime, LastWriteTime;
     if( ! ::GetFileTime( hSrcFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("RESTORE: ERROR: GetFileTime( %s ) failed, error=%s\n"), strSrcPath.c_str(), Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("RESTORE: ERROR: GetFileTime failed: ") ) + strSrcPath + _T("\n")).c_str() );
+        TRACE_ERROR( _T("RESTORE: GetFileTime( %s ) failed, error=%s"), strSrcPath.c_str(), Utils::GetLastErrorString().c_str() );
         goto Cleanup;
     }
 
     if( ! ::SetFileTime( hDstFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("RESTORE: ERROR: SetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("RESTORE: ERROR: SetFileTime failed: ") ) + strDestPath + _T("\n")).c_str() );
+        TRACE_ERROR( _T("RESTORE: SetFileTime( %s ) failed, error=%s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
         goto Cleanup;
     }
-
 
 Cleanup:
     if( hSrcFile )

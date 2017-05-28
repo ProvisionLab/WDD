@@ -90,7 +90,7 @@ VOID MjCreatePrint( PUNICODE_STRING Name, ACCESS_MASK DesiredAccess, USHORT Shar
     CHECK_STATUS( RtlUnicodeStringCat( &FinalBuffer, &SaBuffer ) );
     CHECK_STATUS( RtlUnicodeStringCatString( &FinalBuffer, GetFileFlagString( Flags ) ) );
 
-    TMP_PRINT( "%wZ", FinalBuffer );
+    DEBUG_PRINT( "%wZ", FinalBuffer );
 }
 
 static WCHAR g_StatusString[_MAX_PATH_SIZE];

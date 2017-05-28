@@ -38,10 +38,10 @@ int _cdecl main ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 
     if( ! test.Run( strIniPath ) )
 	{
-		ERROR_PRINT( _T("\nSome tests failed\n") );
+		TRACE_ERROR( _T("CETEST: Some tests failed") );
 		return 1;
 	}
 
-	ERROR_PRINT( _T("\nAll tests are OK\n") );
+	TRACE_ERROR( _T("CETEST: All tests are OK") );
     return 0;
 }

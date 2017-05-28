@@ -6,6 +6,8 @@
 #include "Utils.h"
 
 #define METHOD_CLOSE_HANDLE_IN_DRIVER 0
+//#define TRACE_DEBUG_ TRACE_DEBUG
+#define TRACE_DEBUG_ 
 
 CBackupCopy::CBackupCopy()
     : Deleted(false)
@@ -41,7 +43,7 @@ bool CBackupClient::IsIncluded( const tstring& Path )
 
     if( ! pd.Parse( false, Path ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: Failed to parse %s\n"), Path.c_str() );
+        TRACE_ERROR( _T("CEUSER: Failed to parse %s"), Path.c_str() );
         return false;
     }
 
@@ -96,7 +98,7 @@ bool CBackupClient::CleanupFiles( const tstring& SrcPath )
     {
         for( int i=0; i < delCount; i++ )
         {
-            DEBUG_PRINT( _T("CEUSER: DEBUG: CleanupFiles. Too much copies. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
+            TRACE_DEBUG_( _T("CEUSER: CleanupFiles. Too much copies. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
             DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
         }
         
@@ -112,7 +114,7 @@ bool CBackupClient::CleanupFiles( const tstring& SrcPath )
         __int64 int64FileTime = bf.Copies[i].Time;
         if( int64FileTime < int64ExpiredTime )
         {
-            DEBUG_PRINT( _T("CEUSER: DEBUG: CleanupFiles. Too old copy. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
+            TRACE_DEBUG_( _T("CEUSER: CleanupFiles. Too old copy. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
             DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
             bf.Copies.erase( bf.Copies.begin() + i );
             i --;
@@ -142,7 +144,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
     Utils::CPathDetails pd;
     if( ! pd.Parse( false, strDestPath ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: Failed to parse %s\n"), strDestPath.c_str() );
+        TRACE_ERROR( _T("CEUSER: Failed to parse %s"), strDestPath.c_str() );
         return false;
     }
 
@@ -160,8 +162,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
 
         if( ! bRead )
         {
-            ERROR_PRINT( _T("CEUSER: ERROR: ReadFile %s failed, hFile=%p status=%s\n"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
-            OutputDebugString( (tstring( _T("CEUSER: ERROR: ReadFile failed: ") ) + SrcPath + _T("\n")).c_str() );
+            TRACE_ERROR( _T("CEUSER: ReadFile %s failed, hFile=%p status=%s"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
             ret = false;
             goto Cleanup;
         }
@@ -180,8 +181,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
                 hDestFile = ::CreateFile( strDestPath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL );
                 if( hDestFile == INVALID_HANDLE_VALUE )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: CreateFile failed to open destination file %s, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-                    OutputDebugString( (tstring( _T("CEUSER: ERROR: CreateFile failed to open destination file: ") ) + strDestPath + _T("\n")).c_str() );
+                    TRACE_ERROR( _T("CEUSER: CreateFile failed to open destination file %s, error=%s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
                     ret = false;
                     goto Cleanup;
                 }
@@ -193,8 +193,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
             BOOL bWrite = ::WriteFile( hDestFile, Buffer, dwRead, &dwWritten, NULL );
             if( ! bWrite )
             {
-                ERROR_PRINT( _T("CEUSER: ERROR: WriteFile %s failed, error=%s\n"), SrcPath.c_str(), Utils::GetLastErrorString().c_str() );
-                OutputDebugString( (tstring( _T("CEUSER: ERROR: WriteFile failed: ") ) + SrcPath + _T("\n")).c_str() );
+                TRACE_ERROR( _T("CEUSER: WriteFile %s failed, error=%s"), SrcPath.c_str(), Utils::GetLastErrorString().c_str() );
                 ret = false;
                 goto Cleanup;
             }
@@ -207,14 +206,13 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
 
     if( hDestFile == NULL )
     {
-        INFO_PRINT( _T("CEUSER: INFO: Skipping empty file %s\n"), SrcPath.c_str() );
+        TRACE_INFO( _T("CEUSER: Skipping empty file %s"), SrcPath.c_str() );
         return false;
     }
 
     if( ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: SetFileTime( %s ) failed, error=%s\n"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileTime failed: ") ) + strDestPath + _T("\n")).c_str() );
+        TRACE_ERROR( _T("CEUSER: SetFileTime( %s ) failed, error=%s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
         ret = false;
         goto Cleanup;
     }
@@ -222,8 +220,7 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
     //Copy attributes
     if( ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: SetFileAttributes( %s, 0x%X ) failed, error=%s\n"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
-        OutputDebugString( (tstring( _T("CEUSER: ERROR: SetFileAttributes failed: ") ) + strDestPath + _T("\n")).c_str() );
+        TRACE_ERROR( _T("CEUSER: SetFileAttributes( %s, 0x%X ) failed, error=%s"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
         ret = false;
         goto Cleanup;
     }
@@ -231,14 +228,13 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
     ret = true;
     DstCRC = crc;
 
-    INFO_PRINT( _T("CEUSER: INFO: Backup done OK: %s, index=%d%s\n"), SrcPath.c_str(), Index, Delete ? _T(" DELETED") : _T("") );
-    OutputDebugString( (tstring( _T("CEUSER: INFO Backup done OK: ") ) + SrcPath + _T("\n")).c_str() );
+    TRACE_INFO( _T("CEUSER: Backup done OK: %s, index=%d%s"), SrcPath.c_str(), Index, Delete ? _T(" DELETED") : _T("") );
 
 Cleanup:
     if( hDestFile != NULL && hDestFile != INVALID_HANDLE_VALUE )
     {
         if( ! ::CloseHandle( hDestFile ) )
-            ERROR_PRINT( _T("CEUSER: ERROR: CloseHandle hDestFile failed, hDestFile=%p"), hDestFile );
+            TRACE_ERROR( _T("CEUSER: CloseHandle hDestFile failed, hDestFile=%p"), hDestFile );
     }
 
     return ret;
@@ -248,14 +244,14 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
 {
     if( SrcAttribute & FILE_ATTRIBUTE_DIRECTORY )
     {
-        ERROR_PRINT( _T("CEUSER: WARNING: Directory attribute detected for %s. Skipping\n"), SrcPath.c_str() );
+        TRACE_ERROR( _T("CEUSER: WARNING: Directory attribute detected for %s. Skipping"), SrcPath.c_str() );
         return true;
     }
 
     tstring strLower = Utils::ToLower( SrcPath );
     if( strLower.substr( 0, _Settings.Destination.size() ) == _Settings.Destination )
     {
-        INFO_PRINT( _T("CEUSER: INFO: Skipping write to Destination=%s\n"), SrcPath.c_str() );
+        TRACE_INFO( _T("CEUSER: Skipping write to Destination=%s"), SrcPath.c_str() );
         return true;
     }
 
@@ -279,7 +275,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
 
         if( LastBackupTime && Utils::AddMinutes( LastBackupTime, _Settings.IgnoreSaveForMinutes ) > Utils::NowTime() )
         {
-            INFO_PRINT( _T("CEUSER: INFO: Skipping write %s. Too frequently. Wait %d minute(s)\n"), SrcPath.c_str(), _Settings.IgnoreSaveForMinutes + 1 - Utils::TimeToMinutes( Utils::NowTime() - LastBackupTime ) );
+            TRACE_INFO( _T("CEUSER: Skipping write %s. Too frequently. Wait %d minute(s)"), SrcPath.c_str(), _Settings.IgnoreSaveForMinutes + 1 - Utils::TimeToMinutes( Utils::NowTime() - LastBackupTime ) );
             return true;
         }
 
@@ -292,10 +288,10 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
             {
                 if( ! ::DeleteFile( DstPath.c_str() ) )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: BackupFile: Duplication/DeleteFile: Failed to delete %s\n"), DstPath.c_str() );
+                    TRACE_ERROR( _T("CEUSER: BackupFile: Duplication/DeleteFile: Failed to delete %s"), DstPath.c_str() );
 		            return false;
                 }
-                INFO_PRINT( _T("CEUSER: INFO: Skipping write %s. Same content. CRC: %x\n"), SrcPath.c_str(), LastCRC );
+                TRACE_INFO( _T("CEUSER: Skipping write %s. Same content. CRC: %x"), SrcPath.c_str(), LastCRC );
                 return true;
             }
 
@@ -332,7 +328,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
     }
     else
     {
-        DEBUG_PRINT( _T("CEUSER: DEBUG: Skipping NOT Included file=%s"), SrcPath.c_str() );
+        TRACE_DEBUG_( _T("CEUSER: Skipping NOT Included file=%s"), SrcPath.c_str() );
         return true;
     }
 
@@ -374,7 +370,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         }
 
         pNotification = &pMessage->Notification;
-        DEBUG_PRINT( _T("CEUSER: DEBUG: File write notification: Path=%s HANDLE=0x%p\n"), pNotification->Path, pNotification->hFile );
+        TRACE_DEBUG_( _T("CEUSER: File write notification: Path=%s HANDLE=0x%p"), pNotification->Path, pNotification->hFile );
 
         FILETIME CreationTime, LastAccessTime, LastWriteTime;
         CreationTime.dwLowDateTime = pNotification->CreationTime.LowPart;
@@ -400,12 +396,11 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         hr = ::FilterReplyMessage( Port, (PFILTER_REPLY_HEADER) &replyMessage, sizeof( replyMessage ) );
         if( SUCCEEDED( hr ) )
         {
-            //DEBUG_PRINT( _T("DEBUG: Replied back to driver\n") );
+            //TRACE_DEBUG_( _T("Replied back to driver") );
         }
         else
         {
-            ERROR_PRINT( _T("CEUSER: ERROR: Error replying message. Error = 0x%X\n"), hr );
-            OutputDebugString( _T("CEUSER: ERROR: Error replying message") );
+            TRACE_ERROR( _T("CEUSER: Error replying message. Error = 0x%X"), hr );
             break;
         }
 
@@ -423,13 +418,11 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         if( hr == HRESULT_FROM_WIN32( ERROR_INVALID_HANDLE ) )
         {
             // CeedoBackup port disconnected.
-            INFO_PRINT( _T("CEUSER: INFO: Port is disconnected, probably due to scanner filter unloading\n") );
-            OutputDebugString( _T("CEUSER: INFO: Port is disconnected, probably due to scanner filter unloading") );
+            TRACE_INFO( _T("CEUSER: Port is disconnected, probably due to scanner filter unloading") );
         }
         else
         {
-            ERROR_PRINT( _T("CEUSER: ERROR: Port Get: Unknown error occurred. Error = 0x%X\n"), hr );
-            OutputDebugString( _T("CEUSER: ERROR: Port Get: Unknown error occurred") );
+            TRACE_ERROR( _T("CEUSER: Port Get: Unknown error occurred. Error = 0x%X"), hr );
         }
     }
 
@@ -446,20 +439,20 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     if( IsRunning() )
     {
         error = _T("One instance of application is already running");
-        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T("\n") ).c_str() );
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
         return false;
     }
 
 	if( ! _Settings.Init( IniPath, error ) )
         return false;
 
-	INFO_PRINT( _T("CEUSER: [Settings] File: %s\n"), IniPath.c_str() );
-	INFO_PRINT( _T("CEUSER: [Settings] Backup directory: %s\n"), _Settings.Destination.c_str() );
+	TRACE_INFO( _T("CEUSER: [Settings] File: %s"), IniPath.c_str() );
+	TRACE_INFO( _T("CEUSER: [Settings] Backup directory: %s"), _Settings.Destination.c_str() );
 
     if( ! Utils::CreateDirectory( _Settings.Destination.c_str() ) )
     {
         error = _T("Failed to create Destination directory: ") + _Settings.Destination + _T(", error=") + Utils::GetLastErrorString();
-        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T("\n") ).c_str() );
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
         return false;
     }
 
@@ -469,13 +462,13 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
         return false;
 
     //  Open a communication channel to the filter
-    INFO_PRINT( _T("CEUSER: INFO: Connecting to the filter ...\n") );
+    TRACE_INFO( _T("CEUSER: Connecting to the filter ...") );
 
     HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_hPort );
     if( IS_ERROR( hr ) )
     {
         error = _T("Failed connect to filter port");
-        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": 0x%08x\n") ).c_str(), hr );
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
         return false;
     }
 
@@ -484,13 +477,13 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     if( ! _hCompletion )
     {
         error = _T("Failed to creat completion port");
-        ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": %d\n") ).c_str(), ::GetLastError() );
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": %d") ).c_str(), ::GetLastError() );
         ::CloseHandle( _hPort );
         _hPort = NULL;
         return false;
     }
 
-    INFO_PRINT( _T("CEUSER: INFO: Connected: Port = 0x%p Completion = 0x%p\n"), _hPort, _hCompletion );
+    TRACE_INFO( _T("CEUSER: Connected: Port = 0x%p Completion = 0x%p"), _hPort, _hCompletion );
 
     _Context.Port = _hPort;
     _Context.Completion = _hCompletion;
@@ -507,7 +500,7 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
             //  Couldn't create thread.
             hr = ::GetLastError();
             error = _T("Couldn't create thread");
-            ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": 0x%08x\n") ).c_str(), hr );
+            TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
             goto Cleanup;
         }
 
@@ -519,7 +512,7 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
             {
                 hr = ERROR_NOT_ENOUGH_MEMORY;
                 error = _T("Couldn't malloc BACKUP_MESSAGE");
-                ERROR_PRINT( (tstring( _T("CEUSER: ERROR: ") ) + error + _T(": 0x%08x\n") ).c_str(), hr );
+                TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
                 goto Cleanup;
             }
 
@@ -538,7 +531,7 @@ bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
     }
 
     ret = true;
-    OutputDebugString( _T("CEUSER: INFO: Started\n") );
+    TRACE_DEBUG_( _T("CEUSER: Started") );
 
     if( async )
         return ret;
@@ -579,7 +572,7 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
 			DWORD status = ::GetLastError();
 			if( status != ERROR_FILE_NOT_FOUND )
 			{
-				ERROR_PRINT( _T("CEUSER: ERROR: FindFirstFile failed in %s, error=%s\n"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
+				TRACE_ERROR( _T("CEUSER: FindFirstFile failed in %s, error=%s"), Directory.c_str(), Utils::GetLastErrorString().c_str() );
 				return false;
 			}
 			else
@@ -602,7 +595,7 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
                 Utils::CPathDetails pd;
                 if( ! pd.Parse( true, DstPath ) )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: IterateDirectories: Failed to parse %s\n"), DstPath.c_str() );
+                    TRACE_ERROR( _T("CEUSER: IterateDirectories: Failed to parse %s"), DstPath.c_str() );
                     return false;
                 }
                 int Index = std::stoi(pd.Index);
@@ -623,8 +616,7 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
                 HANDLE hSrcFile = ::CreateFile( DstPath.c_str(), FILE_READ_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
                 if( hSrcFile == INVALID_HANDLE_VALUE )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: IterateDirectories: CreateFile: Failed to delete %s\n"), DstPath.c_str() );
-                    OutputDebugString( (tstring( _T("CEUSER: ERROR: IterateDirectories: CreateFile: Failed to delete: ") ) + DstPath + _T("\n")).c_str() );
+                    TRACE_ERROR( _T("CEUSER: IterateDirectories: CreateFile: Failed to delete %s"), DstPath.c_str() );
 		            return false;
                 }
 
@@ -633,8 +625,7 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
                 ::CloseHandle( hSrcFile );
                 if( ! ret )
                 {
-                    ERROR_PRINT( _T("CEUSER: ERROR: IterateDirectories: GetFileTime( %s ) failed, error=%s\n"), DstPath.c_str(), Utils::GetLastErrorString().c_str() );
-                    OutputDebugString( (tstring( _T("CEUSER: ERROR: GetFileTime failed: ") ) + DstPath + _T("\n")).c_str() );
+                    TRACE_ERROR( _T("CEUSER: IterateDirectories: GetFileTime( %s ) failed, error=%s"), DstPath.c_str(), Utils::GetLastErrorString().c_str() );
                     return false;
                 }
 
@@ -676,7 +667,7 @@ bool CBackupClient::DeleteBackup( const tstring& DstPath, int Index, bool Delete
 
     if( ! ::DeleteFile( strDestPath.c_str() ) )
     {
-        ERROR_PRINT( _T("CEUSER: ERROR: Delete: DeleteFile: Failed to delete %s\n"), strDestPath.c_str() );
+        TRACE_ERROR( _T("CEUSER: Delete: DeleteFile: Failed to delete %s"), strDestPath.c_str() );
 		return false;
     }
 

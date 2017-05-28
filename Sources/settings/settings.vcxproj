@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="ini.cpp" />
     <ClCompile Include="INIReader.cpp" />
+    <ClCompile Include="log.cpp" />
     <ClCompile Include="Settings.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
@@ -29,6 +30,7 @@
     <ClInclude Include="..\inc\usercommon.h" />
     <ClInclude Include="ini.h" />
     <ClInclude Include="INIReader.h" />
+    <ClInclude Include="log.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
