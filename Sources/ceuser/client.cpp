@@ -163,7 +163,6 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
         if( ! bRead )
         {
             TRACE_ERROR( _T("CEUSER: ReadFile %s failed, hFile=%p status=%s"), SrcPath.c_str(), hSrcFile, Utils::GetLastErrorString().c_str() );
-            ret = false;
             goto Cleanup;
         }
 
@@ -174,7 +173,6 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
                 //Lets create directory only if file is not empty
                 if( ! Utils::CreateDirectory( pd.Directory ) )
                 {
-                    ret = false;
                     goto Cleanup;
                 }
 
@@ -182,7 +180,6 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
                 if( hDestFile == INVALID_HANDLE_VALUE )
                 {
                     TRACE_ERROR( _T("CEUSER: CreateFile failed to open destination file %s, error=%s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-                    ret = false;
                     goto Cleanup;
                 }
             }
@@ -194,7 +191,6 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
             if( ! bWrite )
             {
                 TRACE_ERROR( _T("CEUSER: WriteFile %s failed, error=%s"), SrcPath.c_str(), Utils::GetLastErrorString().c_str() );
-                ret = false;
                 goto Cleanup;
             }
         }
@@ -207,13 +203,12 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
     if( hDestFile == NULL )
     {
         TRACE_INFO( _T("CEUSER: Skipping empty file %s"), SrcPath.c_str() );
-        return false;
+        goto Cleanup;
     }
 
     if( ! ::SetFileTime( hDestFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
         TRACE_ERROR( _T("CEUSER: SetFileTime( %s ) failed, error=%s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
-        ret = false;
         goto Cleanup;
     }
 
@@ -221,14 +216,11 @@ bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index
     if( ! ::SetFileAttributes( strDestPath.c_str(), SrcAttribute ) )
     {
         TRACE_ERROR( _T("CEUSER: SetFileAttributes( %s, 0x%X ) failed, error=%s"), strDestPath.c_str(), SrcAttribute, Utils::GetLastErrorString().c_str() );
-        ret = false;
         goto Cleanup;
     }
 
     ret = true;
     DstCRC = crc;
-
-    TRACE_INFO( _T("CEUSER: Backup done OK: %s, index=%d%s"), SrcPath.c_str(), Index, Delete ? _T(" DELETED") : _T("") );
 
 Cleanup:
     if( hDestFile != NULL && hDestFile != INVALID_HANDLE_VALUE )
@@ -293,6 +285,10 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
                 }
                 TRACE_INFO( _T("CEUSER: Skipping write %s. Same content. CRC: %x"), SrcPath.c_str(), LastCRC );
                 return true;
+            }
+            else
+            {
+                TRACE_INFO( _T("CEUSER: Backup done OK: %s, index=%d%s"), SrcPath.c_str(), Index, Delete ? _T(" DELETED") : _T("") );
             }
 
             CBackupCopy bc;

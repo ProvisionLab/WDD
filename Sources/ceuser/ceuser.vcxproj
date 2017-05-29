@@ -99,6 +99,7 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -120,6 +121,7 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,6 +149,7 @@ echo VM_COPY $(TargetPath)
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -168,6 +171,7 @@ echo VM_COPY $(TargetPath)
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -46,5 +46,6 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
         return 1;
 
     TRACE_INFO( _T("CEUSER Exit") );
+
     return 0;
 }

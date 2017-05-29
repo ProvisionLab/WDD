@@ -115,7 +115,7 @@ protected:
 	const tstring Vformat(const TCHAR* format, va_list argl)
 	{
 		size_t required_space = ::_vsctprintf(format, argl) + 1;
-		tstring res(required_space, _T('A'));
+		tstring res(required_space, _T('\0'));
 		int cnt = _vstprintf_s( &res[0], required_space, format, argl );
         res.resize( required_space - 1 );
 		return res;
@@ -175,18 +175,18 @@ public:
 
 	CFileWriter() ;
 	~CFileWriter() ;
-	bool open( const TCHAR* file, options_t openMode = opAppend ) ;
-	void close() ;
-	const tstring getFile() const ;
-	void write( int level, const tstring& buffer ) ;
+	bool Open( const TCHAR* file, options_t openMode = opAppend ) ;
+	void Close() ;
+	const tstring GetFile() const ;
+	void Write( int level, const tstring& buffer ) ;
 	int length() { return _length ; } ;
 
 protected:
-	bool openFile( const TCHAR* file, options_t openMode ) ;
+	bool OpenFile( const TCHAR* file, options_t openMode ) ;
 
 private:
 	tstring _file ;
-	FILE* _stream ;
+	int _handle ;
 	int _length ;
 } ;
 
@@ -205,7 +205,7 @@ public:
 	void warning( const tstring& format, ... ) ;
 	void error( const tstring& format, ... ) ;
 
-	void print( int level, const TCHAR* format, va_list argl ) ;
+	void Print( int level, const TCHAR* format, va_list argl ) ;
 
 	static CLog& instance() ;
 	void ClearPrefix() ;

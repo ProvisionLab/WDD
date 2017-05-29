@@ -174,7 +174,7 @@ bool CTest::Run( const tstring& IniPath )
     if( ! CleanUserApp() )
         goto Cleanup;
 
-	if( ! StartCeuser( true ) )
+	if( ! StartCeuser( false ) )
 		goto Cleanup;
 
     //Same content skip check
@@ -198,7 +198,7 @@ bool CTest::Run( const tstring& IniPath )
 
 	    if( Count > 1 )
 	    {
-		    TRACE_ERROR( _T("CETEST: Backup copies (%d) > INI NumberOfCopies (%d) for %s"), Count, _Settings.NumberOfCopies, strPath.c_str() );
+		    TRACE_ERROR( _T("CETEST: Backup copies (%d) > 1, while should be skipped for %s"), Count, strPath.c_str() );
 		    goto Cleanup;
 	    }
     }
@@ -324,6 +324,8 @@ bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstr
 
 	if( ! Utils::ExecuteProcess( strCmd.c_str() ) )
 		return false;
+
+    //::Sleep( 1000 );
 
 	tstring strRestoredContent;
 	if( To )

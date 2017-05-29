@@ -68,7 +68,7 @@ static TCHAR* strncpy0(TCHAR* dest, const TCHAR* src, size_t size)
 }
 
 /* See documentation in header file. */
-int ini_parse_stream(ini_reader reader, FILE* stream, ini_handler handler, void* user)
+int ini_parse_stream(FILE* stream, ini_handler handler, void* user)
 {
     /* Uses a fair bit of stack (use heap instead if you need to) */
 #if INI_USE_STACK
@@ -101,7 +101,7 @@ int ini_parse_stream(ini_reader reader, FILE* stream, ini_handler handler, void*
 #endif
 
     /* Scan through stream line by line */
-    while (reader(line, INI_MAX_LINE, stream) != NULL)
+    while ( fgets(line, INI_MAX_LINE, stream) != NULL)
     {
         lineno++;
 
@@ -190,7 +190,7 @@ int ini_parse_stream(ini_reader reader, FILE* stream, ini_handler handler, void*
 /* See documentation in header file. */
 int ini_parse_file( FILE* file, ini_handler handler, void* user )
 {
-    return ini_parse_stream( (ini_reader)fgets, file, handler, user );
+    return ini_parse_stream( file, handler, user );
 }
 
 /* See documentation in header file. */

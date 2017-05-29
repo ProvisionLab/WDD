@@ -9,4 +9,15 @@
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LocalDebuggerCommand>
+    </LocalDebuggerCommand>
+    <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
+    <LocalDebuggerWorkingDirectory>C:\Max</LocalDebuggerWorkingDirectory>
+    <RemoteDebuggerCommand>C:\Max\cetest.exe</RemoteDebuggerCommand>
+    <DeploymentDirectory>C:\Max</DeploymentDirectory>
+    <RemoteDebuggerWorkingDirectory>C:\Max</RemoteDebuggerWorkingDirectory>
+    <RemoteDebuggerServerName>VmWin7x86</RemoteDebuggerServerName>
+    <RemoteDebuggerConnection>RemoteWithoutAuthentication</RemoteDebuggerConnection>
+  </PropertyGroup>
 </Project>

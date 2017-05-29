@@ -1,3 +1,5 @@
+#include <fcntl.h>
+#include <io.h> 
 #include "usercommon.h"
 #include "log.h"
 
@@ -10,7 +12,7 @@ CLog& CLog::instance()
 #define DO_PRINT(level, format) { \
 	va_list argl; \
 	va_start(argl, format) ; \
-	print(level, format, argl) ; \
+	Print(level, format, argl) ; \
 	va_end(argl) ; }
 
 CLog::CLog()
@@ -71,7 +73,7 @@ void CLog::ClearPrefix()
 	CThreadFormatter<>::setOptions( opNone ) ;
 }
 
-void CLog::print( int level, const TCHAR* format, va_list argl )
+void CLog::Print( int level, const TCHAR* format, va_list argl )
 {
 	if( ! format )
         return;
@@ -83,7 +85,7 @@ void CLog::print( int level, const TCHAR* format, va_list argl )
 		tstring buffer = CThreadFormatter<>::format( level, format, argl ) ;
 
         if( _bFileOutput )
-    		_FileWriter.write( level, buffer ) ;
+    		_FileWriter.Write( level, buffer ) ;
 
 		if( _bDebugOutput )
 			::OutputDebugString( buffer.c_str() ) ;
@@ -97,69 +99,69 @@ void CLog::print( int level, const TCHAR* format, va_list argl )
 
 bool CLog::Init( const tstring& Name )
 {
-	_bFileOutput = _FileWriter.open( Name.c_str() ) ;
+	_bFileOutput = _FileWriter.Open( Name.c_str() ) ;
 
     return true;
 }
 
-bool CFileWriter::open( const TCHAR* file, options_t openMode )
+bool CFileWriter::Open( const TCHAR* file, options_t openMode )
 {
-	if( ! openFile( file, openMode ) )
+	if( ! OpenFile( file, openMode ) )
 		return false ;
 
 	_file = file ;
 	return true ;
 }
 
-const tstring CFileWriter::getFile() const
+const tstring CFileWriter::GetFile() const
 {
 	return _file ;
 }
 
 CFileWriter::CFileWriter()
-	: _stream(NULL)
+	: _handle(NULL)
 	, _length(0) {}
 
 CFileWriter::~CFileWriter()
 {
-	close() ;
+	Close() ;
 }
 
-void CFileWriter::write( int level, const tstring& buffer )
+void CFileWriter::Write( int level, const tstring& buffer )
 {
-	if( _stream != NULL )
+	if( _handle != NULL )
 	{
-		::fwrite( buffer.c_str(), sizeof(TCHAR), buffer.length(), _stream ) ;
-		::fflush( _stream ) ;
+        std::string ansi( buffer.size(), _T('\0') );
+        size_t convertedChars = 0;
+        wcstombs_s( &convertedChars, &ansi[0], buffer.size() + 1, buffer.c_str(), _TRUNCATE );  
+		int ret = ::_write( _handle, &ansi[0], buffer.length() ) ;
+
 		_length += (int)buffer.length() ;
 	}
 }
 
-bool CFileWriter::openFile( const TCHAR* file, options_t openMode )
+bool CFileWriter::OpenFile( const TCHAR* file, options_t openMode )
 {
-	close() ;
+	Close() ;
 	_length = 0 ;
-	::_tfopen_s( &_stream, file, openMode == opRewrite ? _T("wt") : _T("at") ) ;
-	if( ! _stream )
+    int iOpenFlag = _O_CREAT | _O_TEXT | _O_RDWR;
+    if( openMode == opAppend )
+        iOpenFlag |= _O_APPEND;
+    else
+        iOpenFlag |= _O_WRONLY;
+
+    errno_t err = ::_tsopen_s( &_handle, file, iOpenFlag, _SH_DENYWR, _S_IREAD | _S_IWRITE );
+	if( err != 0 )
 		return false ;
 
-	if( openMode == opAppend )
-	{
-		int prev = ftell( _stream ) ;
-		fseek( _stream, 0L, SEEK_END ) ;
-		int sz = ftell( _stream ) ;
-		fseek( _stream, prev, SEEK_SET ) ;
-
-		_length = sz ;
-	}
-	return _stream != NULL ;
+	return _handle != -1 ;
 }
 
-void CFileWriter::close()
+void CFileWriter::Close()
 {
-	if( _stream )
+	if( _handle )
 	{
-		::fclose( _stream ) ;
-		_stream = NULL ;
+		_close( _handle ) ;
+		_handle = NULL ;
 	}
 }

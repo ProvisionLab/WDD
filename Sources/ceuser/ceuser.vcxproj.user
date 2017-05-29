@@ -3,7 +3,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RemoteDebuggerCommand>C:\Max\ceuser.exe</RemoteDebuggerCommand>
     <RemoteDebuggerWorkingDirectory>C:\Max</RemoteDebuggerWorkingDirectory>
-    <RemoteDebuggerServerName>VmWin10</RemoteDebuggerServerName>
+    <RemoteDebuggerServerName>VmWin7</RemoteDebuggerServerName>
     <RemoteDebuggerConnection>RemoteWithoutAuthentication</RemoteDebuggerConnection>
     <DeploymentDirectory>C:\Max</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
@@ -13,7 +13,7 @@
     <RemoteDebuggerCommand>C:\Max\ceuser.exe</RemoteDebuggerCommand>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerWorkingDirectory>C:\Max</RemoteDebuggerWorkingDirectory>
-    <RemoteDebuggerServerName>VmWin10</RemoteDebuggerServerName>
+    <RemoteDebuggerServerName>VmWin7x86</RemoteDebuggerServerName>
     <RemoteDebuggerConnection>RemoteWithoutAuthentication</RemoteDebuggerConnection>
     <DeploymentDirectory>C:\Max</DeploymentDirectory>
   </PropertyGroup>

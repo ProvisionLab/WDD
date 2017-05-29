@@ -157,6 +157,8 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
         g_StrIniPath = argv[2];
     }
 
+    CLog::instance().Init( _T("ceservice.log") );
+
     g_pService = new CBackupClient();
     SERVICE_TABLE_ENTRY serviceTable[] = { { g_Name, ServiceMain }, { NULL, NULL } };
     StartServiceCtrlDispatcher( serviceTable );
