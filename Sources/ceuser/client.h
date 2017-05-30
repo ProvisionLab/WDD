@@ -56,7 +56,7 @@ private:
     bool IsIncluded( const tstring& Path );
     bool CleanupFiles( const tstring& SrcPath );
     bool DeleteBackup( const tstring& SrcPath, int Index, bool Deleted );
-    bool IterateDirectories( const tstring& Destination, const tstring& Directory );
+    bool IterateDirectories( const tstring& Destination, const tstring& Directory, std::map<tstring, CBackupFile>& BackupFiles, __int64& BackupFolderSize );
 
     static DWORD _BackupWorker( _In_ PBACKUP_THREAD_CONTEXT pContext );
     void BackupWorker( HANDLE Completion, HANDLE Port );
@@ -67,4 +67,5 @@ private:
     BACKUP_THREAD_CONTEXT _Context;
     HANDLE _Threads[BACKUP_MAX_THREAD_COUNT];
     std::map<tstring, CBackupFile> _mapBackupFiles; // <SrcPath, DstFile>
+    __int64 _BackupFolderSize;
 };

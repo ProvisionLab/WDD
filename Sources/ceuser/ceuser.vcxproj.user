@@ -3,11 +3,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RemoteDebuggerCommand>C:\Max\ceuser.exe</RemoteDebuggerCommand>
     <RemoteDebuggerWorkingDirectory>C:\Max</RemoteDebuggerWorkingDirectory>
-    <RemoteDebuggerServerName>VmWin7</RemoteDebuggerServerName>
+    <RemoteDebuggerServerName>VmWin10</RemoteDebuggerServerName>
     <RemoteDebuggerConnection>RemoteWithoutAuthentication</RemoteDebuggerConnection>
     <DeploymentDirectory>C:\Max</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
-    <RemoteDebuggerCommandArguments>-ini cetest.ini</RemoteDebuggerCommandArguments>
+    <RemoteDebuggerCommandArguments>-ini cebackup.ini</RemoteDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <RemoteDebuggerCommand>C:\Max\ceuser.exe</RemoteDebuggerCommand>

@@ -14,6 +14,8 @@ public:
     int DeleteAfterDays;
     int IgnoreSaveForMinutes;
     int NumberOfCopies;
+    long MaxFileSizeBytes;
+    long MaxBackupSizeMB;
 
 	CSettings();
 	virtual ~CSettings() {};

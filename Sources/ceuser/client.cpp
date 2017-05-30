@@ -271,6 +271,26 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
             return true;
         }
 
+        if( _BackupFolderSize/1024/1024 >= _Settings.MaxBackupSizeMB )
+        {
+            TRACE_INFO( _T("CEUSER: Skipping write %s. Max backup folder size (%d MB) reached"), SrcPath.c_str(), _Settings.MaxBackupSizeMB );
+            return true;
+        }
+
+        LARGE_INTEGER FileSize;
+        BOOL ok = ::GetFileSizeEx( hFile, &FileSize );
+        if( ! ok )
+        {
+            TRACE_ERROR( _T("CEUSER: GetFileSizeEx( %s ) failed, error=%s"), SrcPath.c_str(), Utils::GetLastErrorString().c_str() );
+            return false;
+        }
+
+        if( FileSize.QuadPart > _Settings.MaxFileSizeBytes )
+        {
+            TRACE_INFO( _T("CEUSER: Skipping write %s. The file is too big ( %ld > %d bytes)"), SrcPath.c_str(), FileSize.QuadPart, _Settings.MaxFileSizeBytes );
+            return true;
+        }
+
         tstring DstPath;
         unsigned short DstCRC = 0;
         bool ret = DoBackup( hFile, strLower, Index, SrcAttribute, Delete, CreationTime, LastAccessTime, LastWriteTime, DstPath, DstCRC );
@@ -315,6 +335,7 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
             bf.LastBackupTime = Utils::NowTime();
             bf.LastBackupCRC = DstCRC;
 
+            _BackupFolderSize += FileSize.QuadPart;
             LeaveCriticalSection( &_guardMap );
 
             CleanupFiles( strLower );
@@ -554,7 +575,7 @@ bool CBackupClient::Stop()
     return true;
 }
 
-bool CBackupClient::IterateDirectories( const tstring& Destination, const tstring& Directory )
+bool CBackupClient::IterateDirectories( const tstring& Destination, const tstring& Directory, std::map<tstring, CBackupFile>& BackupFiles, __int64& BackupFolderSize )
 {	
     if( Utils::DoesDirectoryExists( Directory ) )
     {
@@ -581,7 +602,7 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
             if( ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
             {
 				if(  strName != _T(".") && strName != _T("..") )
-					if( ! IterateDirectories( Destination, Directory + _T("\\") + strName ) )
+					if( ! IterateDirectories( Destination, Directory + _T("\\") + strName, BackupFiles, BackupFolderSize ) )
 						return false;
 			}
 			else
@@ -598,11 +619,11 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
 
                 tstring SrcPath = Utils::ToLower( Utils::MapToOriginal( Destination, Directory + _T("\\") + pd.Name ) );
                 tstring DstPathNoIndex = Utils::ToLower( Directory + _T("\\") + pd.Name );
-                std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( SrcPath );
+                std::map<tstring, CBackupFile>::iterator it = BackupFiles.find( SrcPath );
                 CBackupFile bf;
-                if( it != _mapBackupFiles.end() )
+                if( it != BackupFiles.end() )
                 {
-                    bf = _mapBackupFiles[SrcPath];
+                    bf = BackupFiles[SrcPath];
                 }
                 else
                 {
@@ -618,12 +639,23 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
 
                 FILETIME CreationTime, LastAccessTime, LastWriteTime;
                 BOOL ret = ::GetFileTime( hSrcFile, &CreationTime, &LastAccessTime, &LastWriteTime );
-                ::CloseHandle( hSrcFile );
                 if( ! ret )
                 {
                     TRACE_ERROR( _T("CEUSER: IterateDirectories: GetFileTime( %s ) failed, error=%s"), DstPath.c_str(), Utils::GetLastErrorString().c_str() );
+                    ::CloseHandle( hSrcFile );
                     return false;
                 }
+
+                LARGE_INTEGER FileSize;
+                ret = ::GetFileSizeEx( hSrcFile, &FileSize );
+                ::CloseHandle( hSrcFile );
+                if( ! ret )
+                {
+                    TRACE_ERROR( _T("CEUSER: IterateDirectories: GetFileSizeEx( %s ) failed, error=%s"), DstPath.c_str(), Utils::GetLastErrorString().c_str() );
+                    return false;
+                }
+
+                __int64 iFileSize = FileSize.QuadPart;
 
                 CBackupCopy bc;
                 bc.Index = Index;
@@ -633,7 +665,8 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
                 if( Index > bf.LastIndex )
                     bf.LastIndex = Index;
 
-                _mapBackupFiles[SrcPath] = bf;
+                BackupFiles[SrcPath] = bf;
+                BackupFolderSize += iFileSize;
             }
         } while( ::FindNextFile( hFind, &ffd ) );
 
@@ -645,8 +678,10 @@ bool CBackupClient::IterateDirectories( const tstring& Destination, const tstrin
 
 bool CBackupClient::ScanRepositoryData()
 {
+    _BackupFolderSize = 0;
+
     //Fill internal map existing backup files information
-    if( ! IterateDirectories( _Settings.Destination, _Settings.Destination ) )
+    if( ! IterateDirectories( _Settings.Destination, _Settings.Destination, _mapBackupFiles, _BackupFolderSize ) )
         return false;
 
     return true;

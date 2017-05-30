@@ -6,6 +6,8 @@ CSettings::CSettings()
     : DeleteAfterDays(30)
     , IgnoreSaveForMinutes(1)
     , NumberOfCopies(10)
+    , MaxFileSizeBytes(1048576)
+    , MaxBackupSizeMB(102400)
 {
 }
 
@@ -135,6 +137,14 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
     NumberOfCopies = reader.GetInteger( _T("Cleanup"), _T("NumberOfCopies"), 0 );
     if( NumberOfCopies <= 0 )
         NumberOfCopies = 1;
+
+    MaxFileSizeBytes = reader.GetInteger( _T("Cleanup"), _T("MaxFileSizeBytes"), 0 );
+    if( MaxFileSizeBytes <= 0 )
+        MaxFileSizeBytes = 1048576;
+
+    MaxBackupSizeMB = reader.GetInteger( _T("Cleanup"), _T("MaxBackupSizeBytes"), 0 );
+    if( MaxBackupSizeMB <= 0 )
+        MaxBackupSizeMB = 102400;
 
     return true;
 }
