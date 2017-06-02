@@ -1,7 +1,6 @@
 #include "usercommon.h"
 #include "restore.h"
 #include "drvcommon.h"
-#include "Settings.h"
 #include "Utils.h"
 
 //  Default and Maximum number of threads.
@@ -9,57 +8,73 @@
 #define BACKUP_DEFAULT_THREAD_COUNT     2
 #define BACKUP_MAX_THREAD_COUNT         64
 
-bool CRestore::Run( const tstring& IniPath, const tstring& Command, const tstring& Path, bool IsPath, const tstring& RestoreToDir )
+#define UNIQUE_CERESTORE_MUTEX L"____CE_RESTORE_APPLICATION____"
+
+CRestore::CRestore()
+    : _hLockMutex(NULL)
 {
-    if( IsRunning() )
+}
+
+CRestore::~CRestore()
+{
+    if( _hLockMutex )
     {
-        TRACE_ERROR( _T("RESTORE: One instance of application is already running") );
+        ::CloseHandle( _hLockMutex );
+        _hLockMutex = NULL;
+    }
+}
+
+bool CRestore::Init( const tstring& IniPath, tstring& Error )
+{
+	if( ! _Settings.Init( IniPath, Error ) )
+        return false;
+
+    if( ! LockAccess() )
+    {
+        Error = _T("One instance of restore is already running");
+        TRACE_ERROR( (tstring( _T("CERESTORE: ") ) + Error).c_str() );
         return false;
     }
-
-	CSettings settings;
-    tstring error;
-	if( ! settings.Init( IniPath, error ) )
-        return false;
-
-	if( Command == _T("listall") )
-		return ListFiles( settings.Destination, true, _T(""), false );
-	else if( Command == _T("list") )
-		return ListFiles( settings.Destination, false, Path, IsPath );
-	else if( Command == _T("restore") )
-		return Restore( settings.Destination, Path );
-	else if( Command == _T("restore_to") )
-		return Restore( settings.Destination, Path, RestoreToDir );
-	else
-	{
-		TRACE_ERROR( _T("Unknown command") );
-		return false;
-	}
 
     return true;
 }
 
-bool CRestore::IsRunning()
+bool CRestore::LockAccess()
 {
-    bool ret = false;
-    HANDLE hMutex = ::CreateMutex( NULL, FALSE, L"____CE_RESTORE_APPLICATION____" );
-    ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
-    if( hMutex )
-        ::ReleaseMutex( hMutex );;
+    if( _hLockMutex )
+        return true;
 
+    _hLockMutex = ::CreateMutex( NULL, FALSE, UNIQUE_CERESTORE_MUTEX );
+    bool exists = ::GetLastError() == ERROR_ALREADY_EXISTS;
+    if( _hLockMutex )
+    {
+        ::ReleaseMutex( _hLockMutex );
+        if( exists )
+        {
+            ::CloseHandle( _hLockMutex );
+            _hLockMutex = NULL;
+        }
+    }
+
+    return ! exists;
+}
+
+bool CRestore::IsAlreadyRunning()
+{
+    HANDLE hMutex = ::OpenMutex( NULL, FALSE, UNIQUE_CERESTORE_MUTEX );
+    bool ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
     return ret;
 }
 
-bool CRestore::ListFiles( const tstring& Destination, bool All, const tstring& Path, bool IsPath )
+bool CRestore::ListFiles( bool All, const tstring& Path, bool IsPath, std::vector<tstring>& Files )
 {
-	tstring StartDirectory = Destination;
+	tstring StartDirectory = _Settings.Destination;
 	Utils::CPathDetails pd;
-	std::vector<tstring> arrFiles;
-	bool ret;
+	bool ret = false;
 
 	if( All )
 	{
-		ret = IterateDirectories( Destination, StartDirectory, _T(""), All, IsPath, arrFiles );
+		ret = IterateDirectories( StartDirectory, _T(""), All, IsPath, Files );
 	}
 	else if( IsPath )
 	{
@@ -69,42 +84,19 @@ bool CRestore::ListFiles( const tstring& Destination, bool All, const tstring& P
 			return false;
 		}
 
-		StartDirectory = Utils::MapToDestination( Destination, pd.Directory );
+		StartDirectory = Utils::MapToDestination( _Settings.Destination, pd.Directory );
 
-		ret = IterateDirectories( Destination, StartDirectory, pd.Name, All, IsPath, arrFiles );
+		ret = IterateDirectories( StartDirectory, pd.Name, All, IsPath, Files );
 	}
 	else
 	{
-		ret = IterateDirectories( Destination, StartDirectory, Path, All, IsPath, arrFiles );
+		ret = IterateDirectories( StartDirectory, Path, All, IsPath, Files );
 	}
 
-	if( ret )
-	{
-		if( arrFiles.size() )
-		{
-			TRACE_INFO( _T("Found matches(%d):"), (int)arrFiles.size() );
-			for( size_t i=0; i<arrFiles.size(); i++ )
-			{
-				TRACE_INFO( _T("%s"), arrFiles[i].c_str() );
-			}
-		}
-		else
-		{
-			if( All )
-			{
-				TRACE_INFO( _T("No files where backed up yet") );
-			}
-			else
-			{
-				TRACE_INFO( _T("No files where found with name '%s'"), Path.c_str() );
-			}
-		}
-	}
-
-	return false;
+	return true;
 }
 
-bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Directory, const tstring& Name, bool All, bool IsPath, std::vector<tstring>& Files )
+bool CRestore::IterateDirectories( const tstring& Directory, const tstring& Name, bool All, bool IsPath, std::vector<tstring>& Files )
 {	
     if( Utils::DoesDirectoryExists( Directory ) )
     {
@@ -135,7 +127,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
             if( ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
             {
 				if( (All || ! IsPath) && strName != _T(".") && strName != _T("..") )
-					if( ! IterateDirectories( Destination, Directory + _T("\\") + strName, Name, All, IsPath, Files ) )
+					if( ! IterateDirectories( Directory + _T("\\") + strName, Name, All, IsPath, Files ) )
 						return false;
 			}
 			else
@@ -147,7 +139,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 				}
 
 				tstring Path = Directory + _T("\\") + strName;
-				Path = Utils::MapToOriginal( Destination, Path );
+				Path = Utils::MapToOriginal( _Settings.Destination, Path );
 				Files.push_back( Path );
             }
         } while( ::FindNextFile( hFind, &ffd ) );
@@ -158,7 +150,7 @@ bool CRestore::IterateDirectories( const tstring& Destination, const tstring& Di
 	return true;
 }
 
-bool CRestore::Restore( const tstring& Destination, const tstring& Path, const tstring& RestoreToDir )
+bool CRestore::Restore( const tstring& Path, const tstring& RestoreToDir )
 {
     HANDLE hSrcFile = NULL;
     HANDLE hDstFile = NULL;
@@ -203,12 +195,12 @@ bool CRestore::Restore( const tstring& Destination, const tstring& Path, const t
 	tstring strSrcPath;
 	if( RestoreToDir.size() )
 	{
-		strSrcPath = Utils::MapToDestination( Destination, Path );
+		strSrcPath = Utils::MapToDestination( _Settings.Destination, Path );
 		strDestPath = RestoreToDir + _T("\\") + pd.Name;
 	}
 	else
 	{
-		strSrcPath = Utils::MapToDestination( Destination, Path );
+		strSrcPath = Utils::MapToDestination( _Settings.Destination, Path );
 		strDestPath = pd.Directory + _T("\\") + pd.Name;
 	}
 

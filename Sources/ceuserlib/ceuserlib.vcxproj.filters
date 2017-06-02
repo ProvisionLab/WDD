@@ -24,6 +24,9 @@
     <ClInclude Include="..\ceuser\ceuser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\cerestore\restore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ceuserlib.cpp">
@@ -33,6 +36,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\ceuser\client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cerestore\restore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

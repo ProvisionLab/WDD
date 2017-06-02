@@ -8,6 +8,7 @@
 #define METHOD_CLOSE_HANDLE_IN_DRIVER 0
 //#define TRACE_DEBUG_ TRACE_DEBUG
 #define TRACE_DEBUG_ 
+#define UNIQUE_CEUSER_MUTEX L"____CE_USER_APPLICATION____"
 
 CBackupCopy::CBackupCopy()
     : Deleted(false)
@@ -23,21 +24,235 @@ CBackupFile::CBackupFile()
 CBackupClient::CBackupClient()
     : _hCompletion(NULL)
     , _hPort(NULL)
+    , _bStarted(false)
+    , _hLockMutex(NULL)
+    , _BackupEvent(NULL)
+    , _CleanupEvent(NULL)
 {
 }
 
-bool CBackupClient::IsRunning()
+CBackupClient::~CBackupClient()
+{
+    Stop();
+
+    if( _hLockMutex )
+    {
+        ::CloseHandle( _hLockMutex );
+        _hLockMutex = NULL;
+    }
+}
+
+bool CBackupClient::LockAccess()
+{
+    if( _hLockMutex )
+        return true;
+
+    _hLockMutex = ::CreateMutex( NULL, FALSE, UNIQUE_CEUSER_MUTEX );
+    bool exists = ::GetLastError() == ERROR_ALREADY_EXISTS;
+    if( _hLockMutex )
+    {
+        ::ReleaseMutex( _hLockMutex );
+        if( exists )
+        {
+            ::CloseHandle( _hLockMutex );
+            _hLockMutex = NULL;
+        }
+    }
+
+    return ! exists;
+}
+
+bool CBackupClient::IsAlreadyRunning()
+{
+    HANDLE hMutex = ::OpenMutex( NULL, FALSE, UNIQUE_CEUSER_MUTEX );
+    bool ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
+    return ret;
+}
+
+bool CBackupClient::IsStarted()
+{
+    return _bStarted;
+}
+
+bool CBackupClient::IsDriverStarted()
 {
     bool ret = false;
-    HANDLE hMutex = ::CreateMutex( NULL, FALSE, L"____CE_USER_APPLICATION____" );
-    ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
-    if( hMutex )
-        ::ReleaseMutex( hMutex );;
+    SC_HANDLE schSCManager =  NULL, schService = NULL;
+    SERVICE_STATUS ssSvcStatus = {};
+    
+    schSCManager = ::OpenSCManager( NULL, NULL, SC_MANAGER_CONNECT );
+    if( schSCManager == NULL )
+        goto Cleanup;
+
+    schService = ::OpenService( schSCManager, L"cebackup", SERVICE_QUERY_STATUS );
+    if( schService == NULL )
+        goto Cleanup;
+
+    if( ! ::QueryServiceStatus( schService, &ssSvcStatus ) )
+        goto Cleanup;
+
+    ret = ssSvcStatus.dwCurrentState == SERVICE_RUNNING;
+
+Cleanup:
+    if( schService )
+        ::CloseServiceHandle( schService );
+    if( schSCManager )
+        ::CloseServiceHandle( schSCManager );
 
     return ret;
 }
 
-bool CBackupClient::IsIncluded( const tstring& Path )
+bool CBackupClient::Start( const tstring& IniPath, tstring& error, bool async )
+{
+    TRACE_INFO( _T("CEUSER: Start(): Path: %s"), IniPath.c_str() );
+    bool ret = false;
+	DWORD requestCount = BACKUP_REQUEST_COUNT;
+    DWORD threadCount = BACKUP_DEFAULT_THREAD_COUNT;
+
+    InitializeCriticalSection( &_guardMap );
+    InitializeCriticalSection( &_guardSettings );
+    InitializeCriticalSection( &_guardCallback );
+
+    if( ! LockAccess() )
+    {
+        error = _T("One instance of ceuser driver client is already running");
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
+        return false;
+    }
+
+    if( ! IsDriverStarted() )
+    {
+        error = _T("Driver is not running");
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
+        return false;
+    }
+
+    if( ! ReloadConfig( IniPath, error ) )
+        return false;
+
+    tstring strDestination = GetSettings().Destination;
+	TRACE_INFO( _T("CEUSER: [Settings] File: %s"), IniPath.c_str() );
+	TRACE_INFO( _T("CEUSER: [Settings] Backup directory: %s"), strDestination.c_str() );
+
+    if( ! Utils::CreateDirectory( strDestination.c_str() ) )
+    {
+        error = _T("Failed to create Destination directory: ") + strDestination + _T(", error=") + Utils::GetLastErrorString();
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
+        return false;
+    }
+
+    if( ! ScanRepositoryData() )
+        return false;
+
+    //  Open a communication channel to the filter
+    TRACE_INFO( _T("CEUSER: Connecting to the filter ...") );
+
+    HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_hPort );
+    if( IS_ERROR( hr ) )
+    {
+        error = _T("Failed connect to filter port");
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
+        return false;
+    }
+
+    //  Create a completion port to associate with this handle.
+    _hCompletion = ::CreateIoCompletionPort( _hPort, NULL, 0, threadCount );
+    if( ! _hCompletion )
+    {
+        error = _T("Failed to creat completion port");
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": %d") ).c_str(), ::GetLastError() );
+        ::CloseHandle( _hPort );
+        _hPort = NULL;
+        return false;
+    }
+
+    TRACE_INFO( _T("CEUSER: Connected: Port = 0x%p Completion = 0x%p"), _hPort, _hCompletion );
+
+    _Context.Port = _hPort;
+    _Context.Completion = _hCompletion;
+    _Context.This = this;
+
+    // Create specified number of threads.
+    DWORD i = 0;
+    for( i = 0; i < threadCount; i++ )
+    {
+        DWORD threadId;
+        _Threads[i] = ::CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) _BackupWorker, &_Context, 0, &threadId );
+        if( ! _Threads[i] ) 
+        {
+            //  Couldn't create thread.
+            hr = ::GetLastError();
+            error = _T("Couldn't create thread");
+            TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
+            goto Cleanup;
+        }
+
+        for( DWORD j = 0; j < requestCount; j++ )
+        {
+            //  Allocate the message.
+            PBACKUP_MESSAGE msg = (PBACKUP_MESSAGE) malloc( sizeof( BACKUP_MESSAGE ) );
+            if( ! msg )
+            {
+                hr = ERROR_NOT_ENOUGH_MEMORY;
+                error = _T("Couldn't malloc BACKUP_MESSAGE");
+                TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
+                goto Cleanup;
+            }
+
+            memset( msg, 0, sizeof( BACKUP_MESSAGE ) );
+
+            // Request messages from the filter driver.
+            hr = ::FilterGetMessage( _hPort, &msg->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &msg->Ovlp );
+
+            if( hr != HRESULT_FROM_WIN32( ERROR_IO_PENDING ) )
+            {
+                error = _T("FilterGetMessage failed");
+                free( msg );
+                goto Cleanup;
+            }
+        }
+    }
+
+    _bStarted = ret = true;
+    TRACE_DEBUG_( _T("CEUSER: Started") );
+
+    if( async )
+        return ret;
+
+    ::WaitForMultipleObjectsEx( i, _Threads, TRUE, INFINITE, FALSE );
+
+Cleanup:
+    ::CloseHandle( _hPort );
+    ::CloseHandle( _hCompletion );
+
+    return ret;
+}
+
+bool CBackupClient::Stop()
+{
+    if( ! _bStarted )
+        return false;
+
+    if( ! _hPort )
+        return false;
+
+    TRACE_INFO( _T("CEUSER: Stopping") );
+    if( _hPort )
+    {
+        ::CloseHandle( _hPort );
+       _hPort = NULL;
+    }
+
+    if( _hCompletion )
+    {
+        ::CloseHandle( _hCompletion );
+        _hCompletion = NULL;
+    }
+
+    return true;
+}
+
+bool CBackupClient::IsIncluded( const tstring& Path, const CSettings& Settings )
 {
 	Utils::CPathDetails pd;
 
@@ -53,25 +268,25 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     // 3. If If file is explicitly set in [IncludeFile] - backup it
     // 4. If If file's directory is explicitly set in [IncludeFile] - backup it
 
-    std::vector<tstring>::iterator it = std::find( _Settings.ExcludedExtensions.begin(), _Settings.ExcludedExtensions.end(), pd.Extension ) ;
-    if( it != _Settings.ExcludedExtensions.end() )
+    std::vector<tstring>::const_iterator it = std::find( Settings.ExcludedExtensions.begin(), Settings.ExcludedExtensions.end(), pd.Extension ) ;
+    if( it != Settings.ExcludedExtensions.end() )
         return false;
 
-    it = std::find( _Settings.ExcludedFiles.begin(), _Settings.ExcludedFiles.end(), Path ) ;
-    if( it != _Settings.ExcludedFiles.end() )
+    it = std::find( Settings.ExcludedFiles.begin(), Settings.ExcludedFiles.end(), Path ) ;
+    if( it != Settings.ExcludedFiles.end() )
         return false;
 
-    for( it = _Settings.ExcludedDirectories.begin(); it != _Settings.ExcludedDirectories.end(); it++ )
+    for( it = Settings.ExcludedDirectories.begin(); it != Settings.ExcludedDirectories.end(); it++ )
     {
         if( Path.substr( 0, (*it).size() ) == (*it)  )
             return false;
     }
 
-    it = std::find( _Settings.IncludedFiles.begin(), _Settings.IncludedFiles.end(), Path ) ;
-    if( it != _Settings.IncludedFiles.end() )
+    it = std::find( Settings.IncludedFiles.begin(), Settings.IncludedFiles.end(), Path ) ;
+    if( it != Settings.IncludedFiles.end() )
         return true;
 
-    for( it = _Settings.IncludedDirectories.begin(); it != _Settings.IncludedDirectories.end(); it++ )
+    for( it = Settings.IncludedDirectories.begin(); it != Settings.IncludedDirectories.end(); it++ )
     {
         if( Path.substr( 0, (*it).size() ) == (*it)  )
             return true;
@@ -80,10 +295,10 @@ bool CBackupClient::IsIncluded( const tstring& Path )
     return false;
 }
 
-bool CBackupClient::CleanupFiles( const tstring& SrcPath )
+bool CBackupClient::CleanupFiles( const tstring& SrcPath, const CSettings& Settings )
 {
     bool ret = false;
-    EnterCriticalSection( &_guardMap );
+    CAutoLock lock( &_guardMap );
 
     std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( SrcPath );
 
@@ -93,13 +308,13 @@ bool CBackupClient::CleanupFiles( const tstring& SrcPath )
     CBackupFile& bf = it->second;
 
     //1. Delete copies > Count
-    int delCount = bf.Copies.size() - _Settings.NumberOfCopies;
+    int delCount = bf.Copies.size() - Settings.NumberOfCopies;
     if( delCount > 0 )
     {
         for( int i=0; i < delCount; i++ )
         {
-            TRACE_DEBUG_( _T("CEUSER: CleanupFiles. Too much copies. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
-            DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
+            TRACE_INFO( _T("CEUSER: CleanupFiles. Too much copies. Deleting: %s Index: %d"), bf.DstPath.c_str(), bf.Copies[i].Index );
+            DeleteBackup( SrcPath, bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
         }
         
         for( int i=0; i < delCount; i++ )
@@ -108,14 +323,14 @@ bool CBackupClient::CleanupFiles( const tstring& SrcPath )
 
     //2. Delete expired copies > Time
     __int64 int64Now = Utils::NowTime();
-    __int64 int64ExpiredTime = Utils::SubstructDays( int64Now, _Settings.DeleteAfterDays );
+    __int64 int64ExpiredTime = Utils::SubstructDays( int64Now, Settings.DeleteAfterDays );
     for( size_t i=0; i < bf.Copies.size(); i++ )
     {
         __int64 int64FileTime = bf.Copies[i].Time;
         if( int64FileTime < int64ExpiredTime )
         {
-            TRACE_DEBUG_( _T("CEUSER: CleanupFiles. Too old copy. Deleting %s Index"), bf.DstPath.c_str(), bf.Copies[i].Index );
-            DeleteBackup( bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
+            TRACE_INFO( _T("CEUSER: CleanupFiles. Too old copy. Deleting: %s Index: %d"), bf.DstPath.c_str(), bf.Copies[i].Index );
+            DeleteBackup( SrcPath, bf.DstPath, bf.Copies[i].Index, bf.Copies[i].Deleted );
             bf.Copies.erase( bf.Copies.begin() + i );
             i --;
         }
@@ -124,14 +339,13 @@ bool CBackupClient::CleanupFiles( const tstring& SrcPath )
     ret = true;
 
 Cleanup:
-    LeaveCriticalSection( &_guardMap );
     return ret;
 }
 
-bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, tstring& DstPath, unsigned short& DstCRC )
+bool CBackupClient::DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, tstring& DstPath, unsigned short& DstCRC, const CSettings& Settings, HANDLE Pid )
 {
     bool ret = false;
-    tstring strMappedPathNoIndex = Utils::MapToDestination( _Settings.Destination, SrcPath );
+    tstring strMappedPathNoIndex = Utils::MapToDestination( Settings.Destination, SrcPath );
 
     std::wstringstream oss;
     oss << strMappedPathNoIndex << _T(".");
@@ -232,7 +446,7 @@ Cleanup:
     return ret;
 }
 
-bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime )
+bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, const CSettings& Settings, HANDLE Pid )
 {
     if( SrcAttribute & FILE_ATTRIBUTE_DIRECTORY )
     {
@@ -241,39 +455,40 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
     }
 
     tstring strLower = Utils::ToLower( SrcPath );
-    if( strLower.substr( 0, _Settings.Destination.size() ) == _Settings.Destination )
+    if( strLower.substr( 0, Settings.Destination.size() ) == Settings.Destination )
     {
         TRACE_INFO( _T("CEUSER: Skipping write to Destination=%s"), SrcPath.c_str() );
         return true;
     }
 
-    if( IsIncluded( strLower ) )
+    if( IsIncluded( strLower, Settings ) )
     {
         int Index = 1;
 
         __int64 LastBackupTime = 0;
         unsigned short LastCRC = 0;
 
-        EnterCriticalSection( &_guardMap );
-        std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( strLower );
-        if( it != _mapBackupFiles.end() )
         {
-            Index = it->second.LastIndex + 1;
-            if( it->second.LastBackupTime )
-                LastBackupTime = it->second.LastBackupTime;
-            LastCRC = it->second.LastBackupCRC;
+            CAutoLock lock( &_guardMap );
+            std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( strLower );
+            if( it != _mapBackupFiles.end() )
+            {
+                Index = it->second.LastIndex + 1;
+                if( it->second.LastBackupTime )
+                    LastBackupTime = it->second.LastBackupTime;
+                LastCRC = it->second.LastBackupCRC;
+            }
         }
-        LeaveCriticalSection( &_guardMap );
 
-        if( LastBackupTime && Utils::AddMinutes( LastBackupTime, _Settings.IgnoreSaveForMinutes ) > Utils::NowTime() )
+        if( LastBackupTime && Utils::AddMinutes( LastBackupTime, Settings.IgnoreSaveForMinutes ) > Utils::NowTime() )
         {
-            TRACE_INFO( _T("CEUSER: Skipping write %s. Too frequently. Wait %d minute(s)"), SrcPath.c_str(), _Settings.IgnoreSaveForMinutes + 1 - Utils::TimeToMinutes( Utils::NowTime() - LastBackupTime ) );
+            TRACE_INFO( _T("CEUSER: Skipping write %s. Too frequently. Wait %d minute(s)"), SrcPath.c_str(), Settings.IgnoreSaveForMinutes + 1 - Utils::TimeToMinutes( Utils::NowTime() - LastBackupTime ) );
             return true;
         }
 
-        if( _BackupFolderSize/1024/1024 >= _Settings.MaxBackupSizeMB )
+        if( _BackupFolderSize/1024/1024 >= Settings.MaxBackupSizeMB )
         {
-            TRACE_INFO( _T("CEUSER: Skipping write %s. Max backup folder size (%d MB) reached"), SrcPath.c_str(), _Settings.MaxBackupSizeMB );
+            TRACE_INFO( _T("CEUSER: Skipping write %s. Max backup folder size (%d MB) reached"), SrcPath.c_str(), Settings.MaxBackupSizeMB );
             return true;
         }
 
@@ -285,15 +500,15 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
             return false;
         }
 
-        if( FileSize.QuadPart > _Settings.MaxFileSizeBytes )
+        if( FileSize.QuadPart > Settings.MaxFileSizeBytes )
         {
-            TRACE_INFO( _T("CEUSER: Skipping write %s. The file is too big ( %ld > %d bytes)"), SrcPath.c_str(), FileSize.QuadPart, _Settings.MaxFileSizeBytes );
+            TRACE_INFO( _T("CEUSER: Skipping write %s. The file is too big ( %ld > %d bytes)"), SrcPath.c_str(), FileSize.QuadPart, Settings.MaxFileSizeBytes );
             return true;
         }
 
         tstring DstPath;
         unsigned short DstCRC = 0;
-        bool ret = DoBackup( hFile, strLower, Index, SrcAttribute, Delete, CreationTime, LastAccessTime, LastWriteTime, DstPath, DstCRC );
+        bool ret = DoBackup( hFile, strLower, Index, SrcAttribute, Delete, CreationTime, LastAccessTime, LastWriteTime, DstPath, DstCRC, Settings, Pid );
         if( ret )
         {
             if( LastCRC == DstCRC )
@@ -316,29 +531,36 @@ bool CBackupClient::BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD Src
             bc.Time = Utils::FileTimeToInt64( LastWriteTime );
             bc.Deleted = Delete;
 
-            EnterCriticalSection( &_guardMap );
-            std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( strLower );
-            if( it == _mapBackupFiles.end() )
             {
-                CBackupFile bfNew;
-                bfNew.DstPath = Utils::ToLower( Utils::MapToDestination( _Settings.Destination, strLower ) );
-                _mapBackupFiles[strLower] = bfNew;
+                CAutoLock lock( &_guardMap );
+                std::map<tstring, CBackupFile>::iterator it = _mapBackupFiles.find( strLower );
+                if( it == _mapBackupFiles.end() )
+                {
+                    CBackupFile bfNew;
+                    bfNew.DstPath = Utils::ToLower( Utils::MapToDestination( Settings.Destination, strLower ) );
+                    _mapBackupFiles[strLower] = bfNew;
+                }
+
+                it = _mapBackupFiles.find( strLower );
+                CBackupFile& bf = it->second;
+
+                if( Index > bf.LastIndex )
+                    bf.LastIndex = Index;
+                bf.Copies.push_back( bc );
+                std::sort( bf.Copies.begin(), bf.Copies.end() );
+                bf.LastBackupTime = Utils::NowTime();
+                bf.LastBackupCRC = DstCRC;
+
+                _BackupFolderSize += FileSize.QuadPart;
             }
 
-            it = _mapBackupFiles.find( strLower );
-            CBackupFile& bf = it->second;
+            {
+                CAutoLock lock( &_guardCallback );
+                if( _BackupEvent )
+                    _BackupEvent( SrcPath.c_str(), DstPath.c_str(), Delete, Pid );
+            }
 
-            if( Index > bf.LastIndex )
-                bf.LastIndex = Index;
-            bf.Copies.push_back( bc );
-            std::sort( bf.Copies.begin(), bf.Copies.end() );
-            bf.LastBackupTime = Utils::NowTime();
-            bf.LastBackupCRC = DstCRC;
-
-            _BackupFolderSize += FileSize.QuadPart;
-            LeaveCriticalSection( &_guardMap );
-
-            CleanupFiles( strLower );
+            CleanupFiles( strLower, Settings );
         }
 
         return ret;
@@ -397,7 +619,8 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         LastWriteTime.dwLowDateTime = pNotification->LastWriteTime.LowPart;
         LastWriteTime.dwHighDateTime = pNotification->LastWriteTime.HighPart;
 
-        result = BackupFile( pNotification->hFile, pNotification->Path, pNotification->FileAttributes, pNotification->DeleteOperation != 0, CreationTime, LastAccessTime, LastWriteTime );
+        CSettings settings = GetSettings();
+        result = BackupFile( pNotification->hFile, pNotification->Path, pNotification->FileAttributes, pNotification->DeleteOperation != 0, CreationTime, LastAccessTime, LastWriteTime, settings, pNotification->ProcessId );
 
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
 
@@ -445,134 +668,6 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
 
     if( pMessage )
         free( pMessage );
-}
-
-bool CBackupClient::Run( const tstring& IniPath, tstring& error, bool async )
-{
-    bool ret = false;
-	DWORD requestCount = BACKUP_REQUEST_COUNT;
-    DWORD threadCount = BACKUP_DEFAULT_THREAD_COUNT;
-
-    if( IsRunning() )
-    {
-        error = _T("One instance of application is already running");
-        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
-        return false;
-    }
-
-	if( ! _Settings.Init( IniPath, error ) )
-        return false;
-
-	TRACE_INFO( _T("CEUSER: [Settings] File: %s"), IniPath.c_str() );
-	TRACE_INFO( _T("CEUSER: [Settings] Backup directory: %s"), _Settings.Destination.c_str() );
-
-    if( ! Utils::CreateDirectory( _Settings.Destination.c_str() ) )
-    {
-        error = _T("Failed to create Destination directory: ") + _Settings.Destination + _T(", error=") + Utils::GetLastErrorString();
-        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
-        return false;
-    }
-
-    InitializeCriticalSection( &_guardMap );
-
-    if( ! ScanRepositoryData() )
-        return false;
-
-    //  Open a communication channel to the filter
-    TRACE_INFO( _T("CEUSER: Connecting to the filter ...") );
-
-    HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_hPort );
-    if( IS_ERROR( hr ) )
-    {
-        error = _T("Failed connect to filter port");
-        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
-        return false;
-    }
-
-    //  Create a completion port to associate with this handle.
-    _hCompletion = ::CreateIoCompletionPort( _hPort, NULL, 0, threadCount );
-    if( ! _hCompletion )
-    {
-        error = _T("Failed to creat completion port");
-        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": %d") ).c_str(), ::GetLastError() );
-        ::CloseHandle( _hPort );
-        _hPort = NULL;
-        return false;
-    }
-
-    TRACE_INFO( _T("CEUSER: Connected: Port = 0x%p Completion = 0x%p"), _hPort, _hCompletion );
-
-    _Context.Port = _hPort;
-    _Context.Completion = _hCompletion;
-    _Context.This = this;
-
-    // Create specified number of threads.
-    DWORD i = 0;
-    for( i = 0; i < threadCount; i++ )
-    {
-        DWORD threadId;
-        _Threads[i] = ::CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) _BackupWorker, &_Context, 0, &threadId );
-        if( ! _Threads[i] ) 
-        {
-            //  Couldn't create thread.
-            hr = ::GetLastError();
-            error = _T("Couldn't create thread");
-            TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
-            goto Cleanup;
-        }
-
-        for( DWORD j = 0; j < requestCount; j++ )
-        {
-            //  Allocate the message.
-            PBACKUP_MESSAGE msg = (PBACKUP_MESSAGE) malloc( sizeof( BACKUP_MESSAGE ) );
-            if( ! msg )
-            {
-                hr = ERROR_NOT_ENOUGH_MEMORY;
-                error = _T("Couldn't malloc BACKUP_MESSAGE");
-                TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
-                goto Cleanup;
-            }
-
-            memset( msg, 0, sizeof( BACKUP_MESSAGE ) );
-
-            // Request messages from the filter driver.
-            hr = ::FilterGetMessage( _hPort, &msg->MessageHeader, FIELD_OFFSET( BACKUP_MESSAGE, Ovlp ), &msg->Ovlp );
-
-            if( hr != HRESULT_FROM_WIN32( ERROR_IO_PENDING ) )
-            {
-                error = _T("FilterGetMessage failed");
-                free( msg );
-                goto Cleanup;
-            }
-        }
-    }
-
-    ret = true;
-    TRACE_DEBUG_( _T("CEUSER: Started") );
-
-    if( async )
-        return ret;
-
-    ::WaitForMultipleObjectsEx( i, _Threads, TRUE, INFINITE, FALSE );
-
-Cleanup:
-    ::CloseHandle( _hPort );
-    ::CloseHandle( _hCompletion );
-
-    return ret;
-}
-
-bool CBackupClient::Stop()
-{
-    if( ! _hCompletion )
-        return false;
-
-    ::CloseHandle( _hPort );
-    ::CloseHandle( _hCompletion );
-    _hPort = NULL;
-    _hCompletion = NULL;
-
-    return true;
 }
 
 bool CBackupClient::IterateDirectories( const tstring& Destination, const tstring& Directory, std::map<tstring, CBackupFile>& BackupFiles, __int64& BackupFolderSize )
@@ -681,13 +776,13 @@ bool CBackupClient::ScanRepositoryData()
     _BackupFolderSize = 0;
 
     //Fill internal map existing backup files information
-    if( ! IterateDirectories( _Settings.Destination, _Settings.Destination, _mapBackupFiles, _BackupFolderSize ) )
+    if( ! IterateDirectories( GetSettings().Destination, GetSettings().Destination, _mapBackupFiles, _BackupFolderSize ) )
         return false;
 
     return true;
 }
 
-bool CBackupClient::DeleteBackup( const tstring& DstPath, int Index, bool Deleted )
+bool CBackupClient::DeleteBackup( const tstring& SrcPath, const tstring& DstPath, int Index, bool Deleted )
 {
     std::wstringstream oss;
     oss << DstPath << _T(".");
@@ -701,6 +796,38 @@ bool CBackupClient::DeleteBackup( const tstring& DstPath, int Index, bool Delete
         TRACE_ERROR( _T("CEUSER: Delete: DeleteFile: Failed to delete %s"), strDestPath.c_str() );
 		return false;
     }
+
+    {
+        CAutoLock lock( &_guardCallback );
+        if( _CleanupEvent )
+            _CleanupEvent( SrcPath.c_str(), strDestPath.c_str(), Deleted );
+    }
+
+    return true;
+}
+
+bool CBackupClient::ReloadConfig( const tstring& IniPath, tstring& error )
+{
+    CAutoLock lock( &_guardSettings );
+
+	if( ! _Settings.Init( IniPath, error ) )
+        return false;
+
+    return true;
+}
+
+CSettings& CBackupClient::GetSettings()
+{
+    CAutoLock lock( &_guardSettings );
+
+    return _Settings;
+}
+
+bool CBackupClient::SetCallbacks( CallBackBackupCallback BackupEvent, CallBackCleanupEvent CleanupEvent )
+{
+    CAutoLock lock( &_guardCallback );
+    _BackupEvent = BackupEvent;
+    _CleanupEvent = CleanupEvent;
 
     return true;
 }

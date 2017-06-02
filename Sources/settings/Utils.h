@@ -36,3 +36,20 @@ namespace Utils
         bool Deleted;
 	};
 }
+
+class CAutoLock
+{
+public:
+    CAutoLock( CRITICAL_SECTION* Section )
+        : _Section( Section )
+    {
+        EnterCriticalSection( _Section );
+    }
+
+    ~CAutoLock()
+    {
+        LeaveCriticalSection( _Section );
+    }
+
+    CRITICAL_SECTION* _Section;
+};

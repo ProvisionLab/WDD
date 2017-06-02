@@ -99,17 +99,17 @@ void CLog::Print( int level, const TCHAR* format, va_list argl )
 
 bool CLog::Init( const tstring& Name )
 {
-	_bFileOutput = _FileWriter.Open( Name.c_str() ) ;
+    _bFileOutput = _FileWriter.Open( Name.c_str() ) ;
 
     return true;
 }
 
-bool CFileWriter::Open( const TCHAR* file, options_t openMode )
+bool CFileWriter::Open( const TCHAR* Path, options_t OpenMode )
 {
-	if( ! OpenFile( file, openMode ) )
+	if( ! OpenFile( Path, OpenMode ) )
 		return false ;
 
-	_file = file ;
+	_file = Path ;
 	return true ;
 }
 
@@ -159,7 +159,7 @@ bool CFileWriter::OpenFile( const TCHAR* file, options_t openMode )
 
 void CFileWriter::Close()
 {
-	if( _handle )
+	if( _handle && _handle != -1 )
 	{
 		_close( _handle ) ;
 		_handle = NULL ;

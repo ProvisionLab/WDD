@@ -8,6 +8,9 @@
 #define BACKUP_DEFAULT_THREAD_COUNT     2
 #define BACKUP_MAX_THREAD_COUNT         64
 
+typedef void (*CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
+typedef void (*CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
+
 class CBackupClient;
 
 //  Context passed to worker threads
@@ -41,31 +44,59 @@ public:
     std::vector<CBackupCopy> Copies; // Copies = size
 };
 
+typedef enum _EStatus
+{
+	EOk = 0,
+    EFailed = 1,
+    EInvalidParameter = 2,
+	ENotInitialized = 3,
+    EOneInstanceOnly = 5,
+	EConfigurationError = 6,
+    EDriverIsNotStarted = 7,
+    EBackupIsNotStarted = 8,
+    EBackupIsAlreadyStarted = 9,
+    EBufferOverflow = 10
+} EStatus;
+
 class CBackupClient
 {
 public:
     CBackupClient();
-    bool Run( const tstring& IniPath, tstring& error, bool async = false );
+    virtual ~CBackupClient();
+    static bool IsDriverStarted();
+    static bool IsAlreadyRunning();
+
+    bool Start( const tstring& IniPath, tstring& Error, bool Async = false );
     bool Stop();
+    bool IsStarted();
+    bool ReloadConfig( const tstring& IniPath, tstring& Error );
+    bool LockAccess();
+    bool SetCallbacks( CallBackBackupCallback BackupEvent, CallBackCleanupEvent CleanupEvent );
 
 private:
-    bool IsRunning();
     bool ScanRepositoryData();
-    bool DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, tstring& DstPath, unsigned short& DstCRC );
-    bool BackupFile ( HANDLE hFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime );
-    bool IsIncluded( const tstring& Path );
-    bool CleanupFiles( const tstring& SrcPath );
-    bool DeleteBackup( const tstring& SrcPath, int Index, bool Deleted );
+    bool DoBackup( HANDLE hSrcFile, const tstring& SrcPath, int Index, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, tstring& DstPath, unsigned short& DstCRC, const CSettings& Settings, HANDLE Pid );
+    bool BackupFile( HANDLE hFile, const tstring& SrcPath, DWORD SrcAttribute, bool Delete, FILETIME CreationTime, FILETIME LastAccessTime, FILETIME LastWriteTime, const CSettings& Settings, HANDLE Pid );
+    bool IsIncluded( const tstring& Path, const CSettings& settings );
+    bool CleanupFiles( const tstring& SrcPath, const CSettings& Settings );
+    bool DeleteBackup( const tstring& SrcPath, const tstring& DstPath, int Index, bool Deleted );
     bool IterateDirectories( const tstring& Destination, const tstring& Directory, std::map<tstring, CBackupFile>& BackupFiles, __int64& BackupFolderSize );
 
     static DWORD _BackupWorker( _In_ PBACKUP_THREAD_CONTEXT pContext );
     void BackupWorker( HANDLE Completion, HANDLE Port );
+    CSettings& GetSettings();
 
+    HANDLE _hLockMutex;
+    bool _bStarted;
 	CSettings _Settings;
     CRITICAL_SECTION _guardMap;
+    CRITICAL_SECTION _guardSettings;
+    CRITICAL_SECTION _guardCallback;
     HANDLE _hPort, _hCompletion;
     BACKUP_THREAD_CONTEXT _Context;
     HANDLE _Threads[BACKUP_MAX_THREAD_COUNT];
     std::map<tstring, CBackupFile> _mapBackupFiles; // <SrcPath, DstFile>
     __int64 _BackupFolderSize;
+    CallBackBackupCallback _BackupEvent;
+    CallBackCleanupEvent _CleanupEvent;
 };

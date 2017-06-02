@@ -311,9 +311,9 @@ bool CTest::Restore( const tstring& Destination, const tstring& Path, const tstr
 	std::string strDir( Dir.begin(), Dir.end() );
 	std::string strCmd;
 	if( To )
-		strCmd = std::string("restore.exe restore_to ") + strPath + " " + strDir;
+		strCmd = std::string("cerestore.exe restore_to ") + strPath + " " + strDir;
 	else
-		strCmd = ("restore.exe restore ") + strPath;
+		strCmd = ("cerestore.exe restore ") + strPath;
 
 	tstring strBackupContent;
 	if( ! GetContent( strMapped, strBackupContent ) )

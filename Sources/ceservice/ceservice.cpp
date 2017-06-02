@@ -113,7 +113,7 @@ void WINAPI ServiceMain( DWORD dwArgc, LPTSTR* pszArgv )
         {
             SetStatus(SERVICE_START_PENDING);
             tstring error;
-            if( g_pService->Run( g_StrIniPath, error, true ) )
+            if( g_pService->Start( g_StrIniPath, error, true ) )
             {
                 SetStatus(SERVICE_RUNNING);
             }

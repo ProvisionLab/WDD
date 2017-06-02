@@ -148,3 +148,15 @@ bool CSettings::ParseIni( INIReader& reader, const tstring& IniPath, tstring& er
 
     return true;
 }
+
+    tstring GetDestination();
+    std::vector<tstring> GetIncludedFiles();
+    std::vector<tstring> GetExcludedFiles();
+    std::vector<tstring> GetIncludedDirectories();
+    std::vector<tstring> GetExcludedDirectories();
+    std::vector<tstring> GetExcludedExtensions();
+    int GetDeleteAfterDays();
+    int GetIgnoreSaveForMinutes();
+    int GetNumberOfCopies();
+    long GetMaxFileSizeBytes();
+    long GetMaxBackupSizeMB();

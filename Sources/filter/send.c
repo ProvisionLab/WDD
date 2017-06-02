@@ -139,7 +139,7 @@ FLT_PREOP_CALLBACK_STATUS OpenAndSend ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PC
     UserProcessKernel = g_CeBackupData.BackupProcessKernel;
     ExReleaseFastMutex( &g_CeBackupData.Guard );    
 
-    //Skip restore.exe application operations
+    //Skip cerestore.exe application operations
     if( BackupProcess && IoThreadToProcess( Data->Thread ) == BackupProcess )
     {
         DEBUG_PRINT( "CB: INFO: Skipping CEUSER write to %S\n", pStrFileName );
@@ -440,6 +440,7 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PFL
     pNotification->ChangeTime = FileInfo->ChangeTime;
     pNotification->FileAttributes = FileInfo->FileAttributes;
     pNotification->DeleteOperation = DeleteOperation;
+    pNotification->ProcessId = PsGetCurrentProcessId();
 
     replyLength = sizeof( BACKUP_REPLY );
 

@@ -41,8 +41,8 @@ int _cdecl wmain ( _In_ int argc, _In_reads_(argc) TCHAR* argv[] )
 
 	CBackupClient client;
 
-    tstring error;
-    if( ! client.Run( strIniPath, error ) )
+    tstring strError;
+    if( ! client.Start( strIniPath, strError ) )
         return 1;
 
     TRACE_INFO( _T("CEUSER Exit") );
