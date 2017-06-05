@@ -98,7 +98,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;CEUSERLIB_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalUsingDirectories>
       </AdditionalUsingDirectories>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings;..\ceuser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings;..\ceuser;..\cerestore</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -145,7 +145,7 @@ echo VM_COPY $(TargetPath)
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;CEUSERLIB_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalUsingDirectories>
       </AdditionalUsingDirectories>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings;..\ceuser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings;..\ceuser;..\cerestore</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -168,7 +168,7 @@ echo VM_COPY $(TargetPath)
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;CEUSERLIB_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalUsingDirectories>
       </AdditionalUsingDirectories>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings;..\ceuser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\inc;..\settings;..\ceuser;..\cerestore</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>

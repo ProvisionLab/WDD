@@ -218,12 +218,12 @@ bool CRestore::Restore( const tstring& Path, tstring& strError, const tstring& R
     {
 		if( RestoreToDir.size() )
         {
-            strError = _T("RESTORE: CopyFile failed: '") + strDestPath + _T("' to RestoreTo '") + RestoreToDir + _T("'. Error: ") + Utils::GetLastErrorString();
+            strError = _T("RESTORE: CopyFile failed: '") + strSrcPath + _T("' to RestoreTo '") + RestoreToDir + _T("'. Error: ") + Utils::GetLastErrorString();
             TRACE_ERROR( strError.c_str() );
         }
 		else
         {
-            strError = _T("RESTORE: CopyFile failed: '") + strDestPath + _T("' to Restore '") + pd.Directory + _T("'. Error: ") + Utils::GetLastErrorString();
+            strError = _T("RESTORE: CopyFile failed: '") + strSrcPath + _T("' to Restore '") + pd.Directory + _T("'. Error: ") + Utils::GetLastErrorString();
             TRACE_ERROR( strError.c_str() );
         }
         goto Cleanup;

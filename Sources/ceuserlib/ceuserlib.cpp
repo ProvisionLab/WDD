@@ -177,9 +177,10 @@ CEUSERLIB_API CeUserLib_Retval SubscribeForBackupEvents( CallBackBackupCallback 
         g_strLastError = _T("One BackupEvent is already subscribed. Unsubscribe first");
         return CEUSERLIB_AlreadySubscribed;
     }
-
+    
     g_BackupEvent = CallBack;
-    g_pService->SetBackupCallback( g_BackupEvent );
+    if( g_pService )
+        g_pService->SetBackupCallback( g_BackupEvent );
 
     return CEUSERLIB_OK;
 }
@@ -202,7 +203,8 @@ CEUSERLIB_API CeUserLib_Retval SubscribeForCleanupEvents( CallBackCleanupEvent C
     }
 
     g_CleanupEvent = CallBack;
-    g_pService->SetCleanupCallback( g_CleanupEvent );
+    if( g_pService )
+        g_pService->SetCleanupCallback( g_CleanupEvent );
 
     return CEUSERLIB_OK;
 }
