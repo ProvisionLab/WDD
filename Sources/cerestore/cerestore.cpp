@@ -11,11 +11,12 @@ bool Run( const tstring& IniPath, const tstring& Command, const tstring& Path, b
 {
     bool ret = false;
 	CRestore restore;
+    tstring strError;
     std::vector<tstring> arrFiles;
 
     if( CRestore::IsAlreadyRunning() )
     {
-        TRACE_ERROR( _T("RESTORE: One instance of application is already running") );
+        TRACE_ERROR( _T("CERESTORE: One instance of application is already running") );
         return false;
     }
 
@@ -32,9 +33,9 @@ bool Run( const tstring& IniPath, const tstring& Command, const tstring& Path, b
 		ret = restore.ListFiles( false, Path, IsPath, arrFiles );
     }
 	else if( Command == _T("restore") )
-		ret = restore.Restore( Path );
+		ret = restore.Restore( Path, strError );
 	else if( Command == _T("restore_to") )
-		ret = restore.Restore( Path, RestoreToDir );
+		ret = restore.Restore( Path, strError, RestoreToDir );
 	else
 	{
 		TRACE_ERROR( _T("Unknown command") );

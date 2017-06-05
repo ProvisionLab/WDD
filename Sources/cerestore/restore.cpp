@@ -32,7 +32,7 @@ bool CRestore::Init( const tstring& IniPath, tstring& Error )
     if( ! LockAccess() )
     {
         Error = _T("One instance of restore is already running");
-        TRACE_ERROR( (tstring( _T("CERESTORE: ") ) + Error).c_str() );
+        TRACE_ERROR( (tstring( _T("RESTORE: ") ) + Error).c_str() );
         return false;
     }
 
@@ -63,6 +63,7 @@ bool CRestore::IsAlreadyRunning()
 {
     HANDLE hMutex = ::OpenMutex( NULL, FALSE, UNIQUE_CERESTORE_MUTEX );
     bool ret = ::GetLastError() == ERROR_ALREADY_EXISTS;
+
     return ret;
 }
 
@@ -150,13 +151,16 @@ bool CRestore::IterateDirectories( const tstring& Directory, const tstring& Name
 	return true;
 }
 
-bool CRestore::Restore( const tstring& Path, const tstring& RestoreToDir )
+bool CRestore::Restore( const tstring& Path, tstring& strError, const tstring& RestoreToDir )
 {
+    bool ret = false;
+
     HANDLE hSrcFile = NULL;
     HANDLE hDstFile = NULL;
 	if( Path.rfind( _T('.') ) == tstring::npos )
 	{
-        TRACE_ERROR( _T("RESTORE: Path without index was provided: %s"), Path.c_str() );
+        strError = _T("RESTORE: Path without index was provided: ") + Path;
+        TRACE_ERROR( strError.c_str() );
         return false;
 	}
 
@@ -172,14 +176,16 @@ bool CRestore::Restore( const tstring& Path, const tstring& RestoreToDir )
     Utils::CPathDetails pd;
 	if( ! pd.Parse( true, strPath ) )
 	{
-        TRACE_ERROR( _T("RESTORE: Failed parse provided path: %s"), Path.c_str() );
+        strError = _T("RESTORE: Failed parse provided path: ") + Path;
+        TRACE_ERROR( strError.c_str() );
         return false;
 	}
 
 	int iIndex = _tstoi( pd.Index.c_str() );
 	if( iIndex <= 0 )
 	{
-        TRACE_ERROR( _T("RESTORE: No Index was found in provided path: %s"), Path.c_str() );
+        strError = _T("RESTORE: No Index was found in provided path: ") + Path;
+        TRACE_ERROR( strError.c_str() );
         return false;
 	}
 
@@ -187,7 +193,10 @@ bool CRestore::Restore( const tstring& Path, const tstring& RestoreToDir )
     HRESULT hr = ::FilterConnectCommunicationPort( RESTORE_PORT_NAME, 0, NULL, 0, NULL, &hPort );
     if( IS_ERROR( hr ) )
     {
-        TRACE_ERROR( _T("RESTORE: Failed connect to RESTORE filter port: 0x%08x"), hr );
+        std::wstringstream oss;
+        oss << _T("RESTORE: Failed connect to RESTORE filter port: ") << hr;
+        strError = oss.str();
+        TRACE_ERROR( strError.c_str() );
         return false;
     }
 
@@ -208,38 +217,50 @@ bool CRestore::Restore( const tstring& Path, const tstring& RestoreToDir )
 	if( ! ::CopyFile( strSrcPath.c_str(), strDestPath.c_str(), FALSE ) )
     {
 		if( RestoreToDir.size() )
-			TRACE_ERROR( _T("RESTORE: Failed to restore file '%s' to _restore_to_ directory '%s'. Error: %s"), strDestPath.c_str(), RestoreToDir.c_str(), Utils::GetLastErrorString().c_str() );
+        {
+            strError = _T("RESTORE: CopyFile failed: '") + strDestPath + _T("' to RestoreTo '") + RestoreToDir + _T("'. Error: ") + Utils::GetLastErrorString();
+            TRACE_ERROR( strError.c_str() );
+        }
 		else
-			TRACE_ERROR( _T("RESTORE: Failed to restore file '%s'. Error: %s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+        {
+            strError = _T("RESTORE: CopyFile failed: '") + strDestPath + _T("' to Restore '") + pd.Directory + _T("'. Error: ") + Utils::GetLastErrorString();
+            TRACE_ERROR( strError.c_str() );
+        }
         goto Cleanup;
     }
 
     hSrcFile = ::CreateFile( strSrcPath.c_str(), FILE_READ_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
     if( hSrcFile == INVALID_HANDLE_VALUE )
     {
-        TRACE_ERROR( _T("RESTORE: Restore: CreateFile: Failed to delete %s"), strSrcPath.c_str() );
+        strError = _T("RESTORE: Restore: CreateFile: Failed to delete ") + strSrcPath;
+        TRACE_ERROR( strError.c_str() );
 		goto Cleanup;
     }
 
     hDstFile = ::CreateFile( strDestPath.c_str(), FILE_WRITE_ATTRIBUTES, 0, NULL, OPEN_EXISTING, 0, NULL );
     if( hDstFile == INVALID_HANDLE_VALUE )
     {
-        TRACE_ERROR( _T("RESTORE: Restore: CreateFile: Failed to delete %s"), strDestPath.c_str() );
+        strError = _T("RESTORE: Restore: CreateFile: Failed to delete ") + strDestPath;
+        TRACE_ERROR( strError.c_str() );
 		goto Cleanup;
     }
 
     FILETIME CreationTime, LastAccessTime, LastWriteTime;
     if( ! ::GetFileTime( hSrcFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        TRACE_ERROR( _T("RESTORE: GetFileTime( %s ) failed, error=%s"), strSrcPath.c_str(), Utils::GetLastErrorString().c_str() );
+        strError = _T("RESTORE: GetFileTime( ") + strSrcPath + _T(" ) failed, error=") + Utils::GetLastErrorString();
+        TRACE_ERROR( strError.c_str() );
         goto Cleanup;
     }
 
     if( ! ::SetFileTime( hDstFile, &CreationTime, &LastAccessTime, &LastWriteTime ) )
     {
-        TRACE_ERROR( _T("RESTORE: SetFileTime( %s ) failed, error=%s"), strDestPath.c_str(), Utils::GetLastErrorString().c_str() );
+        strError = _T("RESTORE: SetFileTime( ") + strDestPath + _T(" ) failed, error=") + Utils::GetLastErrorString();
+        TRACE_ERROR( strError.c_str() );
         goto Cleanup;
     }
+
+    ret = true;
 
 Cleanup:
     if( hSrcFile )
@@ -251,5 +272,5 @@ Cleanup:
     if( hPort )
 		::CloseHandle( hPort );
 
-	return true;
+	return ret;
 }

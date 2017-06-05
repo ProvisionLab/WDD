@@ -111,7 +111,8 @@ CEUSERLIB_API CeUserLib_Retval Start( const wchar_t* IniPath )
     else
         strIniPath = _T("cebackup.ini");
 
-    g_pService->SetCallbacks( g_BackupEvent, g_CleanupEvent );
+    g_pService->SetBackupCallback( g_BackupEvent );
+    g_pService->SetCleanupCallback( g_CleanupEvent );
 
     if( ! g_pService->Start( strIniPath, strError, true ) )
     {
@@ -178,7 +179,7 @@ CEUSERLIB_API CeUserLib_Retval SubscribeForBackupEvents( CallBackBackupCallback 
     }
 
     g_BackupEvent = CallBack;
-    g_pService->SetCallbacks( g_BackupEvent, g_CleanupEvent );
+    g_pService->SetBackupCallback( g_BackupEvent );
 
     return CEUSERLIB_OK;
 }
@@ -187,7 +188,7 @@ CEUSERLIB_API CeUserLib_Retval UnsubscribeFromBackupEvents()
 {
     g_BackupEvent = NULL;
 
-    g_pService->SetCallbacks( g_BackupEvent, g_CleanupEvent );
+    g_pService->SetBackupCallback( NULL );
 
     return CEUSERLIB_OK;
 }
@@ -201,7 +202,7 @@ CEUSERLIB_API CeUserLib_Retval SubscribeForCleanupEvents( CallBackCleanupEvent C
     }
 
     g_CleanupEvent = CallBack;
-    g_pService->SetCallbacks( g_BackupEvent, g_CleanupEvent );
+    g_pService->SetCleanupCallback( g_CleanupEvent );
 
     return CEUSERLIB_OK;
 }
@@ -210,7 +211,7 @@ CEUSERLIB_API CeUserLib_Retval UnsubscribeFromCleanupEvents()
 {
     g_CleanupEvent = NULL;
 
-    g_pService->SetCallbacks( g_BackupEvent, g_CleanupEvent );
+    g_pService->SetCleanupCallback( NULL );
 
     return CEUSERLIB_OK;
 }
@@ -277,6 +278,12 @@ CEUSERLIB_API CeUserLib_Retval Restore_Uninit()
 
 CEUSERLIB_API CeUserLib_Retval Restore_ListAll( wchar_t*** ppRestorePath, unsigned int* PathCount )
 {
+    if( ! g_pRestore )
+    {
+        g_strLastError = _T("Not Initialized");
+        return CEUSERLIB_NotInitialized;
+    }
+
     if( ! PathCount )
     {
         g_strLastError = _T("PathCount is NULL");
@@ -322,13 +329,44 @@ CEUSERLIB_API CeUserLib_Retval Restore_Restore( const wchar_t* BackupPath )
         return CEUSERLIB_NotInitialized;
     }
 
-    //g_pRestore->Restore();
+    if( ! IsDriverStarted() )
+    {
+        g_strLastError = _T("Driver is not running");
+        return CEUSERLIB_DriverIsNotStarted;
+    }
+
+    tstring strError;
+    bool ret = g_pRestore->Restore( BackupPath, strError );
+    if( ! ret )
+    {
+        g_strLastError = strError;
+        return CEUSERLIB_Failed;
+    }
 
     return CEUSERLIB_OK;
 }
 
 CEUSERLIB_API CeUserLib_Retval Restore_RestoreTo( const wchar_t* BackupPath, const wchar_t* ToDirectory )
 {
+    if( ! g_pRestore )
+    {
+        g_strLastError = _T("Not Initialized");
+        return CEUSERLIB_NotInitialized;
+    }
+
+    if( ! IsDriverStarted() )
+    {
+        g_strLastError = _T("Driver is not running");
+        return CEUSERLIB_DriverIsNotStarted;
+    }
+
+    tstring strError;
+    bool ret = g_pRestore->Restore( BackupPath, strError, ToDirectory );
+    if( ! ret )
+    {
+        g_strLastError = strError;
+        return CEUSERLIB_Failed;
+    }
 
     return CEUSERLIB_OK;
 }

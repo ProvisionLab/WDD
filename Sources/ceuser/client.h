@@ -71,7 +71,8 @@ public:
     bool IsStarted();
     bool ReloadConfig( const tstring& IniPath, tstring& Error );
     bool LockAccess();
-    bool SetCallbacks( CallBackBackupCallback BackupEvent, CallBackCleanupEvent CleanupEvent );
+    bool SetBackupCallback( CallBackBackupCallback BackupEvent );
+    bool SetCleanupCallback( CallBackCleanupEvent CleanupEvent );
 
 private:
     bool ScanRepositoryData();

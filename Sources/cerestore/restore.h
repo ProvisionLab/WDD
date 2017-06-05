@@ -13,7 +13,7 @@ public:
     bool LockAccess();
 
 	bool ListFiles( bool All, const tstring& Path, bool IsPath, std::vector<tstring>& Files );
-	bool Restore( const tstring& Path, const tstring& RestoreToDir = _T("") );
+	bool Restore( const tstring& Path, tstring& strError, const tstring& RestoreToDir = _T("") );
 	bool IterateDirectories( const tstring& Directory, const tstring& Name, bool All, bool IsPath, std::vector<tstring>& Files );
 
 private:

@@ -31,7 +31,7 @@ namespace CeBackupLibNet
         }
 
         public CeBackupException( CeUserLib_Retval errorCode )
-            : base("An exception " + errorCode + " occurred during execution.", new Exception( GetDescription(errorCode) ))
+            : base("An exception " + errorCode + " occurred during execution.", new Exception( GetDescription( errorCode ) ))
         {
             this.HResult = (int)errorCode;
         }
@@ -52,29 +52,29 @@ namespace CeBackupLibNet
             {
                 error = (CeUserLib_Retval)Enum.ToObject( typeof(CeUserLib_Retval), errorCode);
             }
-            catch (Exception)
+            catch( Exception )
             {
             }
 
             return error;
         }
 
-        internal static string GetDescription(Enum en)
+        internal static string GetDescription( Enum en )
         {
             Type type = en.GetType();
-            MemberInfo[] memInfo = type.GetMember(en.ToString());
-            if (memInfo != null && memInfo.Length > 0)
+            MemberInfo[] memInfo = type.GetMember( en.ToString() );
+            if( memInfo != null && memInfo.Length > 0 )
             {
-                object[] attrs = memInfo[0].GetCustomAttributes(typeof(DescriptionAttribute), false);
-                if (attrs != null && attrs.Length > 0)
+                object[] attrs = memInfo[0].GetCustomAttributes( typeof(DescriptionAttribute), false );
+                if( attrs != null && attrs.Length > 0 )
                     return ((System.ComponentModel.DescriptionAttribute) attrs[0]).Description;
             }
 
             UnmarshaledString ptr = (UnmarshaledString)InternalCAPI.GetLastErrorString();
-            string str = Marshal.PtrToStringAuto( ptr );
+            string strLastError = Marshal.PtrToStringAuto( ptr );
             Marshal.FreeCoTaskMem( ptr );
 
-            return en.ToString() + ": " + InternalCAPI.GetLastErrorString();
+            return en.ToString() + " - \r\n" + strLastError;
         }
     }
 }

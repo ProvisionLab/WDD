@@ -667,7 +667,13 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
     }
 
     if( pMessage )
-        free( pMessage );
+    {
+        try
+        {
+            free( pMessage );
+        }
+        catch( ... ) {}
+    }
 }
 
 bool CBackupClient::IterateDirectories( const tstring& Destination, const tstring& Directory, std::map<tstring, CBackupFile>& BackupFiles, __int64& BackupFolderSize )
@@ -823,10 +829,17 @@ CSettings& CBackupClient::GetSettings()
     return _Settings;
 }
 
-bool CBackupClient::SetCallbacks( CallBackBackupCallback BackupEvent, CallBackCleanupEvent CleanupEvent )
+bool CBackupClient::SetBackupCallback( CallBackBackupCallback BackupEvent )
 {
     CAutoLock lock( &_guardCallback );
     _BackupEvent = BackupEvent;
+
+    return true;
+}
+
+bool CBackupClient::SetCleanupCallback( CallBackCleanupEvent CleanupEvent )
+{
+    CAutoLock lock( &_guardCallback );
     _CleanupEvent = CleanupEvent;
 
     return true;

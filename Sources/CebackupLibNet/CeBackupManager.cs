@@ -2,8 +2,8 @@
 
 namespace CeBackupLibNet
 {
-    public delegate void BackupEventHandler(string SrcPath, string DstPath, int Deleted, System.IntPtr Pid);
-    public delegate void CleanupEventHandler(string SrcPath, string DstPath, int Deleted);
+    public delegate void BackupEventHandler( string SrcPath, string DstPath, int Deleted, System.IntPtr Pid );
+    public delegate void CleanupEventHandler( string SrcPath, string DstPath, int Deleted );
 
     public class CeBackupManager : IDisposable
     {
@@ -39,8 +39,8 @@ namespace CeBackupLibNet
 
         private void SubscribeForEvents()
         {
-            ptrBackupEvent = new InternalCAPI.CallBackBackupCallback(BackupFunction);
-            ptrCleanupEvent = new InternalCAPI.CallBackCleanupEvent(CleanupFunction);
+            ptrBackupEvent = new InternalCAPI.CallBackBackupCallback( BackupFunction);
+            ptrCleanupEvent = new InternalCAPI.CallBackCleanupEvent( CleanupFunction );
 
             CeBackupException.RaiseIfNotSucceeded( InternalCAPI.SubscribeForBackupEvents( ptrBackupEvent ) );
             CeBackupException.RaiseIfNotSucceeded( InternalCAPI.SubscribeForCleanupEvents( ptrCleanupEvent ) );
@@ -56,38 +56,27 @@ namespace CeBackupLibNet
         {
             try
             {
-                BackupEventHandler threadSafeTempEvent = BackupEvent;
-                if (threadSafeTempEvent != null)
-                {
-                    threadSafeTempEvent( SrcPath, DstPath, Deleted, Pid );
-                }
+                BackupEvent?.Invoke( SrcPath, DstPath, Deleted, Pid );
             }
-            catch
-            {
-            }
+            catch {}
         }
 
         private void CleanupFunction( string SrcPath, string DstPath, int Deleted )
         {
             try
             {
-                CleanupEventHandler threadSafeTempEvent = CleanupEvent;
-                if (threadSafeTempEvent != null)
-                {
-                    threadSafeTempEvent( SrcPath, DstPath, Deleted );
-                }
+                CleanupEvent?.Invoke( SrcPath, DstPath, Deleted );
             }
-            catch
-            {
-            }
-        }
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            catch {}
         }
 
-        protected virtual void Dispose(bool disposing)
+        public void Dispose()
+        {
+            Dispose( true );
+            GC.SuppressFinalize( this );
+        }
+
+        protected virtual void Dispose( bool disposing )
         {
             if( disposed )
                 return; 
@@ -99,7 +88,7 @@ namespace CeBackupLibNet
 
         ~CeBackupManager()
         {
-            Dispose(false);
+            Dispose( false );
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using Strings = System.IntPtr;
+using UnmarshaledString = System.IntPtr;
 
 namespace CeBackupLibNet
 {
@@ -9,7 +9,7 @@ namespace CeBackupLibNet
         private string _IniPath = null;
         private bool disposed = false;
 
-        public CeRestoreManager(string IniPath)
+        public CeRestoreManager( string IniPath )
         {
             Init( IniPath );
         }
@@ -23,7 +23,7 @@ namespace CeBackupLibNet
         public string[] Restore_ListAll()
         {
             uint count = 0;
-            System.IntPtr UnmanagedStringArray = IntPtr.Zero;
+            UnmarshaledString UnmanagedStringArray = IntPtr.Zero;
             CeBackupException.RaiseIfNotSucceeded( InternalCAPI.Restore_ListAll( out UnmanagedStringArray, out count ) );
 
             string[] ManagedStringArray = null;
@@ -41,29 +41,29 @@ namespace CeBackupLibNet
             CeBackupException.RaiseIfNotSucceeded( InternalCAPI.Restore_RestoreTo( BackupPath, DirTo ) );
         }
 
-        static void MarshalUnmananagedStrArray2ManagedStrArray( IntPtr pUnmanagedStringArray, int StringCount, out string[] ManagedStringArray )
+        static void MarshalUnmananagedStrArray2ManagedStrArray( UnmarshaledString pUnmanagedStringArray, int StringCount, out string[] ManagedStringArray )
         {
             IntPtr[] pIntPtrArray = new IntPtr[StringCount];
             ManagedStringArray = new string[StringCount];
 
-            Marshal.Copy(pUnmanagedStringArray, pIntPtrArray, 0, StringCount);
+            Marshal.Copy( pUnmanagedStringArray, pIntPtrArray, 0, StringCount );
 
-            for (int i = 0; i < StringCount; i++)
+            for( int i = 0; i < StringCount; i++ )
             {
-                ManagedStringArray[i] = Marshal.PtrToStringAuto(pIntPtrArray[i]);
-                Marshal.FreeCoTaskMem(pIntPtrArray[i]);
+                ManagedStringArray[i] = Marshal.PtrToStringAuto( pIntPtrArray[i] );
+                Marshal.FreeCoTaskMem( pIntPtrArray[i] );
             }
 
-            Marshal.FreeCoTaskMem(pUnmanagedStringArray);
+            Marshal.FreeCoTaskMem( pUnmanagedStringArray );
         }
 
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            Dispose( true );
+            GC.SuppressFinalize( this );
         }
 
-        protected virtual void Dispose(bool disposing)
+        protected virtual void Dispose( bool disposing )
         {
             if( disposed )
                 return; 
@@ -75,7 +75,7 @@ namespace CeBackupLibNet
 
         ~CeRestoreManager()
         {
-            Dispose(false);
+            Dispose( false );
         }
     }
 }

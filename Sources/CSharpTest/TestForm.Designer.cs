@@ -42,6 +42,7 @@
             this.lstRestore = new System.Windows.Forms.ListBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.lblStatus = new System.Windows.Forms.Label();
+            this.btnBrowse = new System.Windows.Forms.Button();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.SuspendLayout();
@@ -87,18 +88,18 @@
             this.label1.AutoSize = true;
             this.label1.Location = new System.Drawing.Point(1, 44);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(52, 13);
+            this.label1.Size = new System.Drawing.Size(108, 13);
             this.label1.TabIndex = 5;
-            this.label1.Text = "Backups:";
+            this.label1.Text = "Backup Notifications:";
             // 
             // label2
             // 
             this.label2.AutoSize = true;
             this.label2.Location = new System.Drawing.Point(1, 252);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(54, 13);
+            this.label2.Size = new System.Drawing.Size(110, 13);
             this.label2.TabIndex = 6;
-            this.label2.Text = "Cleanups:";
+            this.label2.Text = "Cleanup Notifications:";
             // 
             // btnRestoreGetAll
             // 
@@ -112,6 +113,7 @@
             // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.btnBrowse);
             this.groupBox1.Controls.Add(this.txtRestoreTo);
             this.groupBox1.Controls.Add(this.btnRestoreTo);
             this.groupBox1.Controls.Add(this.btnRestore);
@@ -130,7 +132,7 @@
             this.txtRestoreTo.Name = "txtRestoreTo";
             this.txtRestoreTo.Size = new System.Drawing.Size(335, 20);
             this.txtRestoreTo.TabIndex = 11;
-            this.txtRestoreTo.Text = "c:\\Max\\RestoreTo";
+            this.txtRestoreTo.Text = "c:\\Max\\RestoreTo\\";
             // 
             // btnRestoreTo
             // 
@@ -181,6 +183,16 @@
             this.lblStatus.Size = new System.Drawing.Size(0, 13);
             this.lblStatus.TabIndex = 10;
             // 
+            // btnBrowse
+            // 
+            this.btnBrowse.Location = new System.Drawing.Point(726, 20);
+            this.btnBrowse.Name = "btnBrowse";
+            this.btnBrowse.Size = new System.Drawing.Size(27, 22);
+            this.btnBrowse.TabIndex = 12;
+            this.btnBrowse.Text = "...";
+            this.btnBrowse.UseVisualStyleBackColor = true;
+            this.btnBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
+            // 
             // TestForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -219,6 +231,7 @@
         private System.Windows.Forms.Button btnRestore;
         private System.Windows.Forms.TextBox txtRestoreTo;
         private System.Windows.Forms.Label lblStatus;
+        private System.Windows.Forms.Button btnBrowse;
     }
 }
 

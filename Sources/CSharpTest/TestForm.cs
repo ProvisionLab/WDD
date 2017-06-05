@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
 using CeBackupLibNet;
-using HANDLE = System.IntPtr;
 
 namespace csharptest
 {
@@ -31,7 +30,7 @@ namespace csharptest
                 _BackupManager.BackupEvent += BackupFunction;
                 _BackupManager.CleanupEvent += CleanupFunction;
 
-                _BackupManager.Start("cetest.ini");
+                _BackupManager.Start( "cetest.ini" );
 
                 lblStatus.Text = "CeBackup Started OK";
             }
@@ -74,7 +73,7 @@ namespace csharptest
             }
         }
 
-        private void BackupFunction( string SrcPath, string DstPath, int Deleted, HANDLE Pid )
+        private void BackupFunction( string SrcPath, string DstPath, int Deleted, System.IntPtr Pid )
         {
             lstBackup.Items.Add( SrcPath + " <-> " + DstPath + (Deleted > 0 ? " (Deleted)" : "") + " PID=" + Pid );
         }
@@ -88,7 +87,7 @@ namespace csharptest
         {
             DisposeRestoreManager();
 
-            _RestoreManager = new CeRestoreManager("cetest.ini");
+            _RestoreManager = new CeRestoreManager( "cetest.ini" );
 
             lblStatus.Text = "Restore Init OK";
 
@@ -110,6 +109,7 @@ namespace csharptest
             }
 
             _RestoreManager.Restore( lstRestore.Items[lstRestore.SelectedIndex].ToString() );
+            lblStatus.Text = "Restore OK";
         }
 
         private void btnRestoreTo_Click( object sender, EventArgs e )
@@ -127,6 +127,16 @@ namespace csharptest
             }
 
             _RestoreManager.RestoreTo( lstRestore.Items[lstRestore.SelectedIndex].ToString(), txtRestoreTo.Text );
+            lblStatus.Text = "RestoreTo OK";
+        }
+
+        private void btnBrowse_Click( object sender, EventArgs e )
+        {
+            FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+            if( folderBrowserDialog.ShowDialog() == DialogResult.OK )
+            {
+                txtRestoreTo.Text = folderBrowserDialog.SelectedPath ;
+            }
         }
     }
 }
