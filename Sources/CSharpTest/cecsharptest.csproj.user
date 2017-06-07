@@ -15,4 +15,9 @@
     <RemoteDebugMachine>VmWin10</RemoteDebugMachine>
     <EnableUnmanagedDebugging>true</EnableUnmanagedDebugging>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+    <EnableUnmanagedDebugging>true</EnableUnmanagedDebugging>
+    <RemoteDebugEnabled>true</RemoteDebugEnabled>
+    <RemoteDebugMachine>VmWin10</RemoteDebugMachine>
+  </PropertyGroup>
 </Project>
