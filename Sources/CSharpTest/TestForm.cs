@@ -21,6 +21,7 @@ namespace csharptest
 
         private void btnStart_Click( object sender, EventArgs e )
         {
+            lstBackup.Items.Clear();
             try
             {
                 DisposeBackupManager();
@@ -75,12 +76,18 @@ namespace csharptest
 
         private void BackupFunction( string SrcPath, string DstPath, int Deleted, System.IntPtr Pid )
         {
-            lstBackup.Items.Add( SrcPath + " <-> " + DstPath + (Deleted > 0 ? " (Deleted)" : "") + " PID=" + Pid );
+            this.Invoke( new MethodInvoker(delegate
+            {
+                lstBackup.Items.Add( SrcPath + " <-> " + DstPath + (Deleted > 0 ? " (Deleted)" : "") + " PID=" + Pid );
+            }));
         }
 
         private void CleanupFunction( string SrcPath, string DstPath, int Deleted )
         {
-            lstCleanup.Items.Add( SrcPath + " <-> " + DstPath + (Deleted > 0 ? " (Deleted)" : "") );
+            this.Invoke( new MethodInvoker(delegate
+            {
+                lstCleanup.Items.Add( SrcPath + " <-> " + DstPath + (Deleted > 0 ? " (Deleted)" : "") );
+            }));
         }
 
         private void btnRestoreGetAll_Click( object sender, EventArgs e )

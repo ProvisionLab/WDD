@@ -29,6 +29,9 @@ CBackupClient::CBackupClient()
     , _BackupEvent(NULL)
     , _CleanupEvent(NULL)
 {
+    InitializeCriticalSection( &_guardMap );
+    InitializeCriticalSection( &_guardSettings );
+    InitializeCriticalSection( &_guardCallback );
 }
 
 CBackupClient::~CBackupClient()
@@ -662,11 +665,10 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         }
         else
         {
-            TRACE_ERROR( _T("CEUSER: Port Get: Unknown error occurred. Error = 0x%X"), hr );
+            TRACE_DEBUG( _T("CEUSER: Port Get: Unknown error occurred. Error = 0x%X"), hr );
         }
     }
-
-    if( pMessage )
+    else if( pMessage )
     {
         try
         {
