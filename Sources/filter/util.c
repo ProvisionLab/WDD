@@ -383,7 +383,7 @@ NTSTATUS UnicodeToLower( WCHAR* Str )
         return STATUS_INVALID_PARAMETER;
     }
 
-    for( int i=0; i<iLen; i++ )
+    for( size_t i=0; i<iLen; i++ )
     {
         Str[i] = RtlDowncaseUnicodeChar( Str[i] );
     }
