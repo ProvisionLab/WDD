@@ -18,3 +18,4 @@ NTSTATUS GetCurrentProcessHandler( HANDLE* phProcess );
 NTSTATUS UserHandleToKernelHandle( HANDLE hProcess, HANDLE* phProcess ) ;
 NTSTATUS CloseHandleInProcess( HANDLE hFile, PEPROCESS peProcess );
 NTSTATUS ReferenceHandleInProcess( HANDLE hFile, PEPROCESS peProcess, PFILE_OBJECT* ppDstFileObject );
+NTSTATUS UnicodeToLower( WCHAR* Str );

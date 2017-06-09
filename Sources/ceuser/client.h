@@ -82,6 +82,7 @@ private:
     bool CleanupFiles( const tstring& SrcPath, const CSettings& Settings );
     bool DeleteBackup( const tstring& SrcPath, const tstring& DstPath, int Index, bool Deleted );
     bool IterateDirectories( const tstring& Destination, const tstring& Directory, std::map<tstring, CBackupFile>& BackupFiles, __int64& BackupFolderSize );
+    bool SendDestination( const tstring& Destination );
 
     static DWORD _BackupWorker( _In_ PBACKUP_THREAD_CONTEXT pContext );
     void BackupWorker( HANDLE Completion, HANDLE Port );

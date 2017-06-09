@@ -35,7 +35,6 @@ FLT_PREOP_CALLBACK_STATUS OpenAndSend ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PC
     // g_CeBackupData local copy
     HANDLE UserProcessKernel = NULL;
     PEPROCESS BackupProcess = NULL;
-	PEPROCESS RestoreProcess = NULL;
 
 #if METHOD_CLOSE_HANDLE_IN_DRIVER
     PFILE_OBJECT pDstFileObject = NULL;
@@ -133,25 +132,15 @@ FLT_PREOP_CALLBACK_STATUS OpenAndSend ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PC
 
     DEBUG_PRINT( "CB: DEBUG: OpenAndSend ENTER with %S %S Process=%S\n", Delete ? L"!DEL! " : L"", pStrFileName, pProcessName );
 
-    ExAcquireFastMutex( &g_CeBackupData.Guard ); //Going to APCL IRQL
-    BackupProcess = g_CeBackupData.BackupProcess;
-	RestoreProcess = g_CeBackupData.RestoreProcess;
-    UserProcessKernel = g_CeBackupData.BackupProcessKernel;
-    ExReleaseFastMutex( &g_CeBackupData.Guard );    
-
-    //Skip cerestore.exe application operations
-    if( BackupProcess && IoThreadToProcess( Data->Thread ) == BackupProcess )
+    //Skip ceuser.exe and cerestore.exe application operations
+    BOOLEAN bCeUser = TRUE;
+    if( IsOurProcess( Data, &BackupProcess, &UserProcessKernel, &bCeUser ) )
     {
-        DEBUG_PRINT( "CB: INFO: Skipping CEUSER write to %S\n", pStrFileName );
+        DEBUG_PRINT( "CB: INFO: Skipping CEUSER write to %S\n", bCeUser ? "CEUSER" : "CERESTORE", pStrFileName );
         goto Cleanup;
     }
 
-    if( RestoreProcess && IoThreadToProcess( Data->Thread ) == RestoreProcess )
-    {
-        DEBUG_PRINT( "CB: INFO: Skipping RESTORE write to %S\n", pStrFileName );
-        goto Cleanup;
-    }
-
+    //Client is not connected. Skip
 	if( BackupProcess == NULL )
     {
         INFO_PRINT( "CB: INFO: CEUSER application is not connected to filter. Skipping\n" );
@@ -403,9 +392,9 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PFL
     }
 
     USHORT lenRequired = uniDisk.Length + FltNameInfo->ParentDir.Length + FltNameInfo->FinalComponent.Length + 1;
-    if( lenRequired > MAX_PATH_SIZE )
+    if( lenRequired > CE_MAX_PATH_SIZE )
     {
-        ERROR_PRINT( "\n!!! CB: ERROR Result Path is too big (%d) > %d\n", lenRequired, MAX_PATH_SIZE );
+        ERROR_PRINT( "\n!!! CB: ERROR Result Path is too big (%d) > %d\n", lenRequired, CE_MAX_PATH_SIZE );
         goto Cleanup;
     }
     
@@ -433,7 +422,7 @@ NTSTATUS SendHandleToUser ( _In_ HANDLE hFile, _In_ PFLT_VOLUME Volume, _In_ PFL
 
     RtlZeroMemory( pNotification, sizeof(*pNotification) );
     pNotification->hFile = hFile;
-    RtlCopyMemory( &pNotification->Path, pStrPath, dwPathLength );
+    RtlCopyMemory( pNotification->Path, pStrPath, dwPathLength );
     pNotification->CreationTime = FileInfo->CreationTime;
     pNotification->LastAccessTime = FileInfo->LastAccessTime;
     pNotification->LastWriteTime = FileInfo->LastWriteTime;

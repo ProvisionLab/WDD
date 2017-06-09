@@ -112,10 +112,6 @@ bool CBackupClient::Start( const tstring& IniPath, tstring& error, bool async )
 	DWORD requestCount = BACKUP_REQUEST_COUNT;
     DWORD threadCount = BACKUP_DEFAULT_THREAD_COUNT;
 
-    InitializeCriticalSection( &_guardMap );
-    InitializeCriticalSection( &_guardSettings );
-    InitializeCriticalSection( &_guardCallback );
-
     if( ! LockAccess() )
     {
         error = _T("One instance of ceuser driver client is already running");
@@ -137,24 +133,35 @@ bool CBackupClient::Start( const tstring& IniPath, tstring& error, bool async )
 	TRACE_INFO( _T("CEUSER: [Settings] File: %s"), IniPath.c_str() );
 	TRACE_INFO( _T("CEUSER: [Settings] Backup directory: %s"), strDestination.c_str() );
 
-    if( ! Utils::CreateDirectory( strDestination.c_str() ) )
-    {
-        error = _T("Failed to create Destination directory: ") + strDestination + _T(", error=") + Utils::GetLastErrorString();
-        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
-        return false;
-    }
-
-    if( ! ScanRepositoryData() )
-        return false;
-
     //  Open a communication channel to the filter
     TRACE_INFO( _T("CEUSER: Connecting to the filter ...") );
 
     HRESULT hr = ::FilterConnectCommunicationPort( BACKUP_PORT_NAME, 0, NULL, 0, NULL, &_hPort );
     if( IS_ERROR( hr ) )
     {
-        error = _T("Failed connect to filter port");
-        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(": 0x%08x") ).c_str(), hr );
+        LPTSTR errorText = NULL;
+        FormatMessage(
+           // use system message tables to retrieve error text
+           FORMAT_MESSAGE_FROM_SYSTEM
+           // allocate buffer on local heap for error text
+           |FORMAT_MESSAGE_ALLOCATE_BUFFER
+           // Important! will fail otherwise, since we're not 
+           // (and CANNOT) pass insertion parameters
+           |FORMAT_MESSAGE_IGNORE_INSERTS,  
+           NULL,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
+           hr,
+           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+           (LPTSTR)&errorText,  // output 
+           0, // minimum size for output buffer
+           NULL);   // arguments - see note 
+
+        error = _T("Failed connect to filter port: ");
+        if( NULL != errorText )
+            error += errorText;
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error + _T(" code: 0x%08x") ).c_str(), hr );
+
+        if( NULL != errorText )
+           LocalFree( errorText );
         return false;
     }
 
@@ -170,6 +177,19 @@ bool CBackupClient::Start( const tstring& IniPath, tstring& error, bool async )
     }
 
     TRACE_INFO( _T("CEUSER: Connected: Port = 0x%p Completion = 0x%p"), _hPort, _hCompletion );
+
+    if( ! SendDestination( _Settings.Destination ) )
+        return false;
+
+    if( ! Utils::CreateDirectory( strDestination.c_str() ) )
+    {
+        error = _T("Failed to create Destination directory: ") + strDestination + _T(", error=") + Utils::GetLastErrorString();
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + error).c_str() );
+        return false;
+    }
+
+    if( ! ScanRepositoryData() )
+        return false;
 
     _Context.Port = _hPort;
     _Context.Completion = _hCompletion;
@@ -229,6 +249,30 @@ Cleanup:
     ::CloseHandle( _hCompletion );
 
     return ret;
+}
+
+bool CBackupClient::SendDestination( const tstring& Destination )
+{
+    if( ! _hPort || ! _hCompletion )
+    {
+        TRACE_ERROR( _T("CEUSER: SendDestination: Not connected to driver. Skipping") );
+        return false;
+    }
+
+    BACKUP_COMMAND_MESSAGE commandMessage = {};
+
+    commandMessage.Command = E_BACKUP_COMMAND_SET_DESTINATION;
+    _tcscpy_s( commandMessage.Path, CE_MAX_PATH_SIZE, Destination.c_str() );
+
+    ULONG bytesReturned = 0;
+    HRESULT hr = FilterSendMessage( _hPort, &commandMessage, sizeof( BACKUP_COMMAND_MESSAGE ), NULL, 0, &bytesReturned );
+    if( FAILED(hr) )
+    {
+        TRACE_ERROR( _T("CEUSER: FilterSendMessage failed: 0x%08x"), hr );
+        return false;
+    }
+
+    return true;
 }
 
 bool CBackupClient::Stop()
@@ -820,6 +864,9 @@ bool CBackupClient::ReloadConfig( const tstring& IniPath, tstring& error )
 
 	if( ! _Settings.Init( IniPath, error ) )
         return false;
+
+    if( _hPort && _hCompletion )
+        SendDestination( _Settings.Destination );
 
     return true;
 }

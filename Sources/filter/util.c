@@ -370,3 +370,23 @@ NTSTATUS ReferenceHandleInProcess( HANDLE hFile, PEPROCESS peProcess, PFILE_OBJE
 
     return status;
 }
+
+NTSTATUS UnicodeToLower( WCHAR* Str )
+{
+    if( ! Str )
+        return STATUS_INVALID_PARAMETER;
+
+    size_t iLen = 0;
+    if( ! NT_SUCCESS( RtlStringCbLengthW( Str, CE_MAX_PATH_SIZE, &iLen ) ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: RtlStringCbLengthW failed\n" );
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    for( int i=0; i<iLen; i++ )
+    {
+        Str[i] = RtlDowncaseUnicodeChar( Str[i] );
+    }
+
+    return STATUS_SUCCESS;
+}

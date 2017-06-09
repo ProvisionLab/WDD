@@ -17,6 +17,7 @@
     #pragma alloc_text(PAGE, CbInstanceTeardownStart)
     #pragma alloc_text(PAGE, CbInstanceTeardownComplete)
     #pragma alloc_text(PAGE, BackupPortConnect)
+    #pragma alloc_text(PAGE, BackupPortMessage)
     #pragma alloc_text(PAGE, BackupPortDisconnect)
 #endif
 
@@ -198,25 +199,34 @@ VOID CbInstanceTeardownComplete ( _In_ PCFLT_RELATED_OBJECTS FltObjects, _In_ FL
 *************************************************************************/
 NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath )
 {
-    UNREFERENCED_PARAMETER( RegistryPath );
     NTSTATUS status = STATUS_SUCCESS;
     OBJECT_ATTRIBUTES oaBackup, oaRestore;
     UNICODE_STRING uniBackupPortName, uniRestorePortName;
     PSECURITY_DESCRIPTOR sd;
 
+    //DbgBreakPoint();
     INFO_PRINT( "CB: INFO DriverEntry\n" );
 
     RtlZeroMemory( &g_CeBackupData, sizeof(g_CeBackupData) );
+    ExInitializeFastMutex( &g_CeBackupData.Guard );
+
+    g_CeBackupData.RegistryPath.Buffer = ExAllocatePoolWithTag( NonPagedPool, RegistryPath->Length, 'kBeC' );
+    g_CeBackupData.RegistryPath.Length = 0;
+    g_CeBackupData.RegistryPath.MaximumLength = RegistryPath->Length;
+    RtlCopyUnicodeString( &g_CeBackupData.RegistryPath, RegistryPath );
+    g_CeBackupData.RegistryPath.Length = RegistryPath->Length;
+
+    ReadDestination( RegistryPath );
 
     //  Register with FltMgr to tell it our callback routines
     status = FltRegisterFilter( DriverObject, &FilterRegistration, &g_CeBackupData.Filter );
-	FLT_ASSERT( NT_SUCCESS( status ) );
+    FLT_ASSERT( NT_SUCCESS( status ) );
     if( ! NT_SUCCESS( status ) )
-	    goto Cleanup;
+        goto Cleanup;
 
     //  Create a communication port.
     RtlInitUnicodeString( &uniBackupPortName, BACKUP_PORT_NAME );
-	RtlInitUnicodeString( &uniRestorePortName, RESTORE_PORT_NAME );
+    RtlInitUnicodeString( &uniRestorePortName, RESTORE_PORT_NAME );
 
     //  We secure the port so only ADMINs & SYSTEM can access it.
     status = FltBuildDefaultSecurityDescriptor( &sd, FLT_PORT_ALL_ACCESS );
@@ -224,13 +234,13 @@ NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Re
         goto Cleanup;
 
     InitializeObjectAttributes( &oaBackup, &uniBackupPortName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, sd );
-	InitializeObjectAttributes( &oaRestore, &uniRestorePortName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, sd );
+    InitializeObjectAttributes( &oaRestore, &uniRestorePortName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, sd );
 
-    status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.BackupPort,  &oaBackup,  NULL, BackupPortConnect,  BackupPortDisconnect,  NULL, 1 );
+    status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.BackupPort,  &oaBackup,  NULL, BackupPortConnect,  BackupPortDisconnect,  BackupPortMessage, 1 );
 
-	status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.RestorePort, &oaRestore, NULL, RestorePortConnect, RestorePortDisconnect, NULL, 1 );
+    status = FltCreateCommunicationPort( g_CeBackupData.Filter, &g_CeBackupData.RestorePort, &oaRestore, NULL, RestorePortConnect, RestorePortDisconnect, NULL, 1 );
 
-	//  Free the security descriptor in all cases. It is not needed once the call to FltCreateCommunicationPort() is made.
+    //  Free the security descriptor in all cases. It is not needed once the call to FltCreateCommunicationPort() is made.
     FltFreeSecurityDescriptor( sd );
     if( ! NT_SUCCESS( status ) )
         goto Cleanup;
@@ -239,13 +249,11 @@ NTSTATUS DriverEntry ( _In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Re
     if( ! NT_SUCCESS( status ) )
         goto Cleanup;
 
-    ExInitializeFastMutex( &g_CeBackupData.Guard );
-
     return status;
 
 Cleanup:
     if( g_CeBackupData.Filter )
-	{
+    {
         FltUnregisterFilter( g_CeBackupData.Filter );
         g_CeBackupData.Filter;
     }
@@ -262,7 +270,7 @@ Cleanup:
         g_CeBackupData.RestorePort = NULL;
     }
 
-	return status;
+    return status;
 }
 
 NTSTATUS CbUnload ( _In_ FLT_FILTER_UNLOAD_FLAGS Flags )
@@ -274,7 +282,9 @@ NTSTATUS CbUnload ( _In_ FLT_FILTER_UNLOAD_FLAGS Flags )
     INFO_PRINT( "CB: INFO CbUnload\n" );
 
     FltCloseCommunicationPort( g_CeBackupData.BackupPort );
-	FltCloseCommunicationPort( g_CeBackupData.RestorePort );
+    FltCloseCommunicationPort( g_CeBackupData.RestorePort );
+    ExFreePoolWithTag( g_CeBackupData.RegistryPath.Buffer, 'kBeC' );
+    g_CeBackupData.RegistryPath.Length = 0;
 
     FltUnregisterFilter( g_CeBackupData.Filter );
 
@@ -293,7 +303,7 @@ FLT_POSTOP_CALLBACK_STATUS PostOperation ( _Inout_ PFLT_CALLBACK_DATA Data, _In_
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
-FLT_PREOP_CALLBACK_STATUS PreOperationNo ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFLT_RELATED_OBJECTS FltObjects, _Flt_CompletionContext_Outptr_ PVOID *CompletionContext )
+FLT_PREOP_CALLBACK_STATUS PreOperationNo ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFLT_RELATED_OBJECTS FltObjects, _Flt_CompletionContext_Outptr_ PVOID* CompletionContext )
 {
     UNREFERENCED_PARAMETER( Data );
     UNREFERENCED_PARAMETER( FltObjects );
@@ -322,7 +332,7 @@ VOID CbContextCleanup ( _In_ PFLT_CONTEXT Context, _In_ FLT_CONTEXT_TYPE Context
     }
 }
 
-NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie )
+NTSTATUS BackupPortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID* ConnectionCookie )
 {
     PAGED_CODE();
 
@@ -384,13 +394,13 @@ VOID BackupPortDisconnect( _In_opt_ PVOID ConnectionCookie )
         ZwClose( BackupProcessKernel );
 }
 
-NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID *ConnectionCookie )
+NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPortCookie, _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext, _In_ ULONG SizeOfContext, _Outptr_result_maybenull_ PVOID* ConnectionCookie )
 {
     PAGED_CODE();
     UNREFERENCED_PARAMETER( ServerPortCookie );
     UNREFERENCED_PARAMETER( ConnectionContext );
-    UNREFERENCED_PARAMETER( SizeOfContext);
-    UNREFERENCED_PARAMETER( ConnectionCookie = NULL );
+    UNREFERENCED_PARAMETER( SizeOfContext );
+    UNREFERENCED_PARAMETER( ConnectionCookie );
 
     FLT_ASSERT( g_CeBackupData.ClientRestorePort == NULL );
     FLT_ASSERT( g_CeBackupData.RestoreProcess == NULL );
@@ -401,6 +411,83 @@ NTSTATUS RestorePortConnect ( _In_ PFLT_PORT ClientPort, _In_opt_ PVOID ServerPo
 	ExReleaseFastMutex( &g_CeBackupData.Guard );
 
     INFO_PRINT( "CB: INFO RestorePortConnect: port=0x%p PsGetCurrentProcess()=%p\n", ClientPort, PsGetCurrentProcess() );
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS BackupPortMessage ( _In_opt_ PVOID PortCookie, _In_reads_bytes_opt_(InputBufferLength) PVOID InputBuffer, _In_ ULONG InputBufferLength, _Out_writes_bytes_to_opt_(OutputBufferLength,*ReturnOutputBufferLength) PVOID OutputBuffer, _In_ ULONG OutputBufferLength, _Out_ PULONG ReturnOutputBufferLength )
+{
+    PAGED_CODE();
+    UNREFERENCED_PARAMETER( PortCookie );
+    UNREFERENCED_PARAMETER( InputBuffer );
+    UNREFERENCED_PARAMETER( InputBufferLength );
+    UNREFERENCED_PARAMETER( OutputBuffer );
+    UNREFERENCED_PARAMETER( OutputBufferLength );
+    UNREFERENCED_PARAMETER( ReturnOutputBufferLength );
+    E_BACKUP_COMMAND command = 0;
+    WCHAR* strSrcPath = NULL, *strDstPath = NULL;
+
+    INFO_PRINT( "CB: INFO BackupPortMessage: InputBufferLength=0x%d\n", InputBufferLength );
+
+    if( InputBuffer == NULL || InputBufferLength < sizeof(BACKUP_COMMAND_MESSAGE) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: InputBuffer == NULL || InputBufferLength < sizeof(BACKUP_COMMAND_MESSAGE)\n" );
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    try
+    {
+        // Probe and capture input message: the message is raw user mode buffer, so need to protect with exception handler
+        command = ((PBACKUP_COMMAND_MESSAGE)InputBuffer)->Command;
+        strSrcPath = ((PBACKUP_COMMAND_MESSAGE)InputBuffer)->Path;
+
+        if( command != E_BACKUP_COMMAND_SET_DESTINATION )
+        {
+            ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: Unsupported command %d\n", command );
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        if( strSrcPath == NULL )
+        {
+            ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: strPath == NULL\n" );
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        size_t iLen = 0;
+        if( ! NT_SUCCESS( RtlStringCbLengthW( strSrcPath, CE_MAX_PATH_SIZE, &iLen ) ) )
+        {
+            ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: RtlStringCbLengthW failed\n" );
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        if( iLen == 0 )
+        {
+            ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: iLen == 0\n" );
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        strDstPath = ExAllocatePoolWithTag( NonPagedPool, (iLen + 1) * sizeof(WCHAR), 'kBeC' );
+
+        if( ! strDstPath )
+        {
+            ERROR_PRINT( "\nCB: !!! ERROR BackupPortMessage: RtlStringCbLengthW failed\n" );
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        RtlCopyMemory( strDstPath, strSrcPath, iLen * sizeof(WCHAR) );
+        strDstPath[iLen] = 0;
+    }
+    except( BackupExceptionFilter( GetExceptionInformation(), TRUE ) )
+    {
+        ExFreePoolWithTag( strDstPath, 'kBeC' );
+        return GetExceptionCode();
+    }
+
+    if( strDstPath )
+    {
+        SetDestination( strDstPath, TRUE );
+        ExFreePoolWithTag( strDstPath, 'kBeC' );
+    }
 
     return STATUS_SUCCESS;
 }
@@ -418,4 +505,186 @@ VOID RestorePortDisconnect( _In_opt_ PVOID ConnectionCookie )
 	g_CeBackupData.ClientRestorePort = NULL;
     g_CeBackupData.RestoreProcess = NULL;
 	ExReleaseFastMutex( &g_CeBackupData.Guard );
+}
+
+LONG BackupExceptionFilter ( _In_ PEXCEPTION_POINTERS ExceptionPointer, _In_ BOOLEAN AccessingUserBuffer )
+{
+    NTSTATUS Status;
+
+    Status = ExceptionPointer->ExceptionRecord->ExceptionCode;
+    if( ! FsRtlIsNtstatusExpected( Status ) && ! AccessingUserBuffer )
+    {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+NTSTATUS ReadDestination( PUNICODE_STRING RegistryPath )
+{
+    OBJECT_ATTRIBUTES attributes;
+    HANDLE driverRegKey;
+    UNICODE_STRING valueName;
+    PKEY_VALUE_PARTIAL_INFORMATION stringValue = NULL;
+    ULONG stringValueLength = 0;
+    ULONG resultLength = 0;
+
+    InitializeObjectAttributes( &attributes, RegistryPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL );
+    NTSTATUS status = ZwOpenKey( &driverRegKey, KEY_READ, &attributes );
+    if( ! NT_SUCCESS( status ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ZwOpenKey failed: err=0x%X\n", status );
+        return status;
+    }
+
+    RtlInitUnicodeString( &valueName, L"Destination" );
+    status = ZwQueryValueKey( driverRegKey, &valueName, KeyValuePartialInformation, NULL, 0, &resultLength );
+    if( status != STATUS_BUFFER_TOO_SMALL && status != STATUS_BUFFER_OVERFLOW )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ZwOpenKey failed: err=0x%X\n", status );
+        goto Cleanup;
+    }
+
+    if( resultLength == 0 )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ZwQueryValueKey returned resultLength = 0\n" );
+        return status;
+    }
+
+    stringValueLength = resultLength;
+    stringValue = ExAllocatePoolWithTag( PagedPool, stringValueLength + sizeof(WCHAR), 'kBeC' );
+    if( ! stringValue )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ExAllocatePoolWithTag failed: size: %d\n", stringValueLength );
+        goto Cleanup;
+    }
+
+    RtlZeroMemory( stringValue, stringValueLength + sizeof(WCHAR) );
+    status = ZwQueryValueKey( driverRegKey, &valueName, KeyValuePartialInformation, stringValue, stringValueLength, &resultLength );
+    if( ! NT_SUCCESS( status ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ZwQueryValueKey failed: err=0x%X\n", status );
+        goto Cleanup;
+    }
+
+    if( stringValue->Type != REG_SZ )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ZwQueryValueKey Type != REG_SZ: err=0x%X\n", status );
+        goto Cleanup;
+    }
+
+    if( stringValue->DataLength >= CE_MAX_PATH_SIZE )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR ReadDestination: ZwQueryValueKey Too long string: DataLength=%d\n", stringValue->DataLength );
+        goto Cleanup;
+    }
+
+    INFO_PRINT( "CB: INFO Read Destination from registry: %S \n", stringValue->Data );
+    SetDestination( (WCHAR*)stringValue->Data, FALSE );
+
+Cleanup:
+    if( stringValue )
+        ExFreePoolWithTag( stringValue, 'kBeC' );
+
+    if( driverRegKey != NULL )
+        ZwClose( driverRegKey );
+
+    return STATUS_SUCCESS;
+}
+
+VOID SetDestination( WCHAR* Destination, BOOLEAN Save )
+{
+    OBJECT_ATTRIBUTES attributes;
+    HANDLE driverRegKey;
+    UNICODE_STRING valueName;
+    size_t iLen = 0;
+    PFLT_VOLUME DestinationVolume = NULL;
+    NTSTATUS status;
+
+    if( ! NT_SUCCESS( RtlStringCbLengthW( Destination, 1024, &iLen ) ) )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR SetDestination: RtlStringCbLengthW failed\n" );
+        return;
+    }
+
+    if( iLen == 0 )
+    {
+        ERROR_PRINT( "\nCB: !!! ERROR SetDestination: Empty value provided\n" );
+        return;
+    }
+
+    iLen /= sizeof(WCHAR);
+    if( iLen > 2 )
+    {
+        LONG res = RtlCompareUnicodeStrings( &Destination[1], 2, L":\\", 2, TRUE );
+
+        if( res == 0 )
+        {
+            UNICODE_STRING uniName;
+            uniName.Buffer = Destination;
+            uniName.Length = 3 * sizeof(WCHAR);
+            uniName.MaximumLength = 3 * sizeof(WCHAR);
+
+            status = FltGetVolumeFromName( g_CeBackupData.Filter, &uniName, &DestinationVolume );
+            if( ! NT_SUCCESS( status ) )
+            {
+                ERROR_PRINT( "\nCB: !!! ERROR SetDestination: FltGetVolumeFromName(%wZ) failed: err=0x%X\n", uniName, status );
+                return;
+            }
+
+            Destination += 2;
+            iLen -= 2;
+        }
+    }
+
+    ExAcquireFastMutex( &g_CeBackupData.Guard );
+    RtlCopyMemory( g_CeBackupData.Destination, Destination, iLen * sizeof(WCHAR) );
+    g_CeBackupData.DestinationLength = (USHORT)iLen;
+    g_CeBackupData.DestinationVolume = DestinationVolume;
+    ExReleaseFastMutex( &g_CeBackupData.Guard );
+
+    INFO_PRINT( "CB: INFO SetDestination: Destination set: %S Volume=%p\n", g_CeBackupData.Destination, iLen, g_CeBackupData.DestinationVolume );
+
+    if( Save )
+    {
+        InitializeObjectAttributes( &attributes, &g_CeBackupData.RegistryPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL );
+        status = ZwOpenKey( &driverRegKey, KEY_WRITE, &attributes );
+        if( NT_SUCCESS( status ) )
+        {
+            RtlInitUnicodeString( &valueName, L"Destination" );
+            status = ZwSetValueKey( driverRegKey, &valueName, KeyValuePartialInformation, REG_SZ, Destination, (ULONG)iLen * sizeof(WCHAR) );
+            if( NT_SUCCESS( status ) )
+            {
+                TMP_PRINT( "CB: INFO Destination %S saved to registry\n", g_CeBackupData.Destination );
+            }
+
+            if( driverRegKey != NULL )
+                ZwClose( driverRegKey );
+        }
+    }
+}
+
+BOOLEAN IsOurProcess( PFLT_CALLBACK_DATA Data, PEPROCESS* BackupProcess, HANDLE* UserProcessKernel, BOOLEAN* CeUser )
+{
+    PEPROCESS RestoreProcess = NULL;
+
+    ExAcquireFastMutex( &g_CeBackupData.Guard ); //Going to APCL IRQL
+    *BackupProcess = g_CeBackupData.BackupProcess;
+    *UserProcessKernel = g_CeBackupData.BackupProcessKernel;
+    RestoreProcess = g_CeBackupData.RestoreProcess;
+    ExReleaseFastMutex( &g_CeBackupData.Guard );    
+
+    if( *BackupProcess && IoThreadToProcess( Data->Thread ) == *BackupProcess )
+    {
+        *CeUser = TRUE;
+        return TRUE;
+    }
+
+    if( RestoreProcess && IoThreadToProcess( Data->Thread ) == RestoreProcess )
+    {
+        *CeUser = FALSE;
+        return TRUE;
+    }
+
+    return FALSE;
 }

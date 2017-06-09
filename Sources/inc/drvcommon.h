@@ -1,6 +1,6 @@
 #pragma once
 
-#define MAX_PATH_SIZE 1024
+#define CE_MAX_PATH_SIZE 1024
 
 #define BACKUP_PORT_NAME L"\\CeBackupPort"
 #define RESTORE_PORT_NAME L"\\CeRestorePort"
@@ -8,7 +8,7 @@
 typedef struct _BACKUP_NOTIFICATION
 {
     HANDLE hFile;
-    WCHAR Path[MAX_PATH_SIZE];
+    WCHAR Path[CE_MAX_PATH_SIZE];
     LARGE_INTEGER CreationTime;
     LARGE_INTEGER LastAccessTime;
     LARGE_INTEGER LastWriteTime;
@@ -22,3 +22,15 @@ typedef struct _BACKUP_REPLY
 {
     BOOLEAN OkToOpen;
 } BACKUP_REPLY, *PBACKUP_REPLY;
+
+typedef enum
+{
+    E_BACKUP_COMMAND_UNKNOWN = 0,
+    E_BACKUP_COMMAND_SET_DESTINATION = 1
+} E_BACKUP_COMMAND;
+
+typedef struct _BACKUP_COMMAND_MESSAGE
+{
+    E_BACKUP_COMMAND Command;
+    WCHAR Path[CE_MAX_PATH_SIZE];
+} BACKUP_COMMAND_MESSAGE, *PBACKUP_COMMAND_MESSAGE;
