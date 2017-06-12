@@ -31,7 +31,7 @@ FLT_PREOP_CALLBACK_STATUS PreCreate ( _Inout_ PFLT_CALLBACK_DATA Data, _In_ PCFL
             if( IsOurProcess( Data, &BackupProcess, &UserProcessKernel, &bCeUser ) )
                 return FLT_PREOP_SUCCESS_NO_CALLBACK;
 
-            INFO_PRINT( "CB: !!! REJECTED access to %wZ\n", Data->Iopb->TargetFileObject->FileName );
+            TMP_PRINT( "CB: DEBUG: Access to %wZ was REJECTED\n", Data->Iopb->TargetFileObject->FileName );
 
             FltCancelFileOpen( FltObjects->Instance, FltObjects->FileObject );
 

@@ -19,4 +19,5 @@ public:
 private:
     CSettings _Settings;
     HANDLE _hLockMutex;
+	HANDLE _hPort;
 };

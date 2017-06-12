@@ -12,11 +12,18 @@
 
 CRestore::CRestore()
     : _hLockMutex(NULL)
+    , _hPort(NULL)
 {
 }
 
 CRestore::~CRestore()
 {
+    if( _hPort )
+    {
+        ::CloseHandle( _hPort );
+        _hPort = NULL;
+    }
+
     if( _hLockMutex )
     {
         ::CloseHandle( _hLockMutex );
@@ -34,6 +41,22 @@ bool CRestore::Init( const tstring& IniPath, tstring& Error )
         Error = _T("One instance of restore is already running");
         TRACE_ERROR( (tstring( _T("RESTORE: ") ) + Error).c_str() );
         return false;
+    }
+
+    HRESULT hr = ::FilterConnectCommunicationPort( RESTORE_PORT_NAME, 0, NULL, 0, NULL, &_hPort );
+    if( IS_ERROR( hr ) )
+    {
+        LPTSTR errorText = NULL;
+        FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&errorText, 0, NULL );
+        Error = _T("RESTORE: Failed connect to filter port: ");
+        if( NULL != errorText )
+            Error += errorText;
+        TRACE_ERROR( (tstring( _T("CEUSER: ") ) + Error + _T(" code: 0x%08x") ).c_str(), hr );
+
+        if( NULL != errorText )
+           LocalFree( errorText );
+        return false;
+
     }
 
     return true;
@@ -94,7 +117,7 @@ bool CRestore::ListFiles( bool All, const tstring& Path, bool IsPath, std::vecto
 		ret = IterateDirectories( StartDirectory, Path, All, IsPath, Files );
 	}
 
-	return true;
+	return ret;
 }
 
 bool CRestore::IterateDirectories( const tstring& Directory, const tstring& Name, bool All, bool IsPath, std::vector<tstring>& Files )
@@ -147,6 +170,11 @@ bool CRestore::IterateDirectories( const tstring& Directory, const tstring& Name
 
         ::FindClose( hFind );
     }
+    else
+    {
+        TRACE_ERROR( _T("RESTORE: Directory %s does not exist"), Directory.c_str() );
+        return false;
+    }
 
 	return true;
 }
@@ -188,17 +216,6 @@ bool CRestore::Restore( const tstring& Path, tstring& strError, const tstring& R
         TRACE_ERROR( strError.c_str() );
         return false;
 	}
-
-	HANDLE hPort = NULL;
-    HRESULT hr = ::FilterConnectCommunicationPort( RESTORE_PORT_NAME, 0, NULL, 0, NULL, &hPort );
-    if( IS_ERROR( hr ) )
-    {
-        std::wstringstream oss;
-        oss << _T("RESTORE: Failed connect to RESTORE filter port: ") << hr;
-        strError = oss.str();
-        TRACE_ERROR( strError.c_str() );
-        return false;
-    }
 
 	tstring strDestPath = Path;
 	tstring strSrcPath;
@@ -268,9 +285,6 @@ Cleanup:
 
     if( hDstFile )
         ::CloseHandle( hDstFile );
-
-    if( hPort )
-		::CloseHandle( hPort );
 
 	return ret;
 }

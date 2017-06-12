@@ -1,14 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <RemoteDebuggerCommand>C:\Max\restore.exe</RemoteDebuggerCommand>
+    <RemoteDebuggerCommand>C:\Max\cerestore.exe</RemoteDebuggerCommand>
     <RemoteDebuggerWorkingDirectory>C:\Max</RemoteDebuggerWorkingDirectory>
     <RemoteDebuggerServerName>VmWin10</RemoteDebuggerServerName>
-    <RemoteDebuggerConnection>RemoteWithoutAuthentication</RemoteDebuggerConnection>
+    <RemoteDebuggerConnection>RemoteWithAuthentication</RemoteDebuggerConnection>
     <DeploymentDirectory>C:\Max</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <LocalDebuggerCommandArguments>restore_to c:\777.txt.1 c:\max\restore</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
-    <RemoteDebuggerCommandArguments>-ini cebackup.ini restore C:\Max\Test\dir1\1.txt.DELETED.1</RemoteDebuggerCommandArguments>
+    <RemoteDebuggerCommandArguments>listall</RemoteDebuggerCommandArguments>
   </PropertyGroup>
 </Project>
