@@ -1,9 +1,0 @@
-C:\Max\CeBackup\Bin\x64\Release\CeTestNet.exe.config
-C:\Max\CeBackup\Bin\x64\Release\CeTestNet.exe
-C:\Max\CeBackup\Bin\x64\Release\CeTestNet.pdb
-C:\Max\CeBackup\Sources\CeTestNet\obj\Release\CeTestNet.csprojResolveAssemblyReference.cache
-C:\Max\CeBackup\Sources\CeTestNet\obj\Release\CeTestNet.TestForm.resources
-C:\Max\CeBackup\Sources\CeTestNet\obj\Release\CeTestNet.Properties.Resources.resources
-C:\Max\CeBackup\Sources\CeTestNet\obj\Release\CeTestNet.csproj.GenerateResource.Cache
-C:\Max\CeBackup\Sources\CeTestNet\obj\Release\CeTestNet.exe
-C:\Max\CeBackup\Sources\CeTestNet\obj\Release\CeTestNet.pdb
