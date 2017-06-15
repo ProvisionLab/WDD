@@ -7,8 +7,8 @@
     <ProjectGuid>{CDBB25DD-498D-4B6D-8C07-5E138BD78602}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>csharptest</RootNamespace>
-    <AssemblyName>csharptest</AssemblyName>
+    <RootNamespace>CeTestNet</RootNamespace>
+    <AssemblyName>CeTestNet</AssemblyName>
     <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>

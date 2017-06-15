@@ -2,7 +2,7 @@
 using System.Windows.Forms;
 using CeBackupLibNet;
 
-namespace csharptest
+namespace CeTestNet
 {
     public partial class TestForm : Form
     {

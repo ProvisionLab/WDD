@@ -38,7 +38,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ceuserlib", "ceuserlib\ceus
 		{C1E8BFF0-F318-4EF2-B746-47F3CB8FFB31} = {C1E8BFF0-F318-4EF2-B746-47F3CB8FFB31}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeCsharpTest", "csharptest\CeCsharpTest.csproj", "{CDBB25DD-498D-4B6D-8C07-5E138BD78602}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeTestNet", "CeTestNet\CeTestNet.csproj", "{CDBB25DD-498D-4B6D-8C07-5E138BD78602}"
 	ProjectSection(ProjectDependencies) = postProject
 		{2BB3DB3C-3FFB-4AF4-9B6A-BA8394B1D83C} = {2BB3DB3C-3FFB-4AF4-9B6A-BA8394B1D83C}
 	EndProjectSection

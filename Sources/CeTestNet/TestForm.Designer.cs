@@ -1,4 +1,4 @@
-﻿namespace csharptest
+﻿namespace CeTestNet
 {
     partial class TestForm
     {

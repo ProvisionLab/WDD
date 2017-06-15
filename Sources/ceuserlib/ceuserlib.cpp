@@ -7,7 +7,7 @@ CBackupClient* g_pService = NULL;
 tstring g_strLastError;
 bool g_LogInitialize = false;
 
-static void InitializeLog()
+static void __cdecl InitializeLog()
 {
     if( ! g_LogInitialize )
     {
@@ -19,7 +19,7 @@ static void InitializeLog()
 CallBackBackupCallback g_BackupEvent = NULL;
 CallBackCleanupEvent g_CleanupEvent = NULL;
 
-static TCHAR* AllocateCSharpString( const tstring& str )
+static TCHAR* __cdecl AllocateCSharpString( const tstring& str )
 {
     ULONG ulSize = (str.size() + 1 ) * sizeof(TCHAR);
     TCHAR* pszReturn = (TCHAR*)::CoTaskMemAlloc( ulSize );
@@ -28,12 +28,12 @@ static TCHAR* AllocateCSharpString( const tstring& str )
     return pszReturn;
 }
 
-CEUSERLIB_API const wchar_t* GetLastErrorString()
+CEUSERLIB_API const wchar_t* __cdecl GetLastErrorString()
 {
     return AllocateCSharpString(  g_strLastError );
 }
 
-CEUSERLIB_API CeUserLib_Retval Init()
+CEUSERLIB_API CeUserLib_Retval __cdecl Init()
 {
     InitializeLog();
 
@@ -67,7 +67,7 @@ CEUSERLIB_API CeUserLib_Retval Init()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Uninit()
+CEUSERLIB_API CeUserLib_Retval __cdecl Uninit()
 {
     if( ! g_pService )
     {
@@ -84,12 +84,12 @@ CEUSERLIB_API CeUserLib_Retval Uninit()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API int IsDriverStarted()
+CEUSERLIB_API int __cdecl IsDriverStarted()
 {
     return CBackupClient::IsDriverStarted();
 }
 
-CEUSERLIB_API int IsBackupStarted()
+CEUSERLIB_API int __cdecl IsBackupStarted()
 {
     if( ! g_pService )
         return 0;
@@ -97,7 +97,7 @@ CEUSERLIB_API int IsBackupStarted()
     return g_pService->IsStarted();
 }
 
-CEUSERLIB_API CeUserLib_Retval Start( const wchar_t* IniPath )
+CEUSERLIB_API CeUserLib_Retval __cdecl Start( const wchar_t* IniPath )
 {
     if( ! g_pService )
     {
@@ -123,7 +123,7 @@ CEUSERLIB_API CeUserLib_Retval Start( const wchar_t* IniPath )
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Stop()
+CEUSERLIB_API CeUserLib_Retval __cdecl Stop()
 {
     if( ! g_pService )
     {
@@ -146,7 +146,7 @@ CEUSERLIB_API CeUserLib_Retval Stop()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval ReloadConfig( const wchar_t* IniPath )
+CEUSERLIB_API CeUserLib_Retval __cdecl ReloadConfig( const wchar_t* IniPath )
 {
     if( ! g_pService )
     {
@@ -170,7 +170,7 @@ CEUSERLIB_API CeUserLib_Retval ReloadConfig( const wchar_t* IniPath )
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval SubscribeForBackupEvents( CallBackBackupCallback CallBack )
+CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForBackupEvents( CallBackBackupCallback CallBack )
 {
     if( g_BackupEvent )
     {
@@ -185,7 +185,7 @@ CEUSERLIB_API CeUserLib_Retval SubscribeForBackupEvents( CallBackBackupCallback 
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval UnsubscribeFromBackupEvents()
+CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromBackupEvents()
 {
     g_BackupEvent = NULL;
 
@@ -194,7 +194,7 @@ CEUSERLIB_API CeUserLib_Retval UnsubscribeFromBackupEvents()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval SubscribeForCleanupEvents( CallBackCleanupEvent CallBack )
+CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForCleanupEvents( CallBackCleanupEvent CallBack )
 {
     if( g_CleanupEvent )
     {
@@ -209,7 +209,7 @@ CEUSERLIB_API CeUserLib_Retval SubscribeForCleanupEvents( CallBackCleanupEvent C
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval UnsubscribeFromCleanupEvents()
+CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromCleanupEvents()
 {
     g_CleanupEvent = NULL;
 
@@ -218,7 +218,7 @@ CEUSERLIB_API CeUserLib_Retval UnsubscribeFromCleanupEvents()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Restore_Init( const wchar_t* IniPath )
+CEUSERLIB_API CeUserLib_Retval __cdecl Restore_Init( const wchar_t* IniPath )
 {
     InitializeLog();
 
@@ -264,7 +264,7 @@ CEUSERLIB_API CeUserLib_Retval Restore_Init( const wchar_t* IniPath )
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Restore_Uninit()
+CEUSERLIB_API CeUserLib_Retval __cdecl Restore_Uninit()
 {
     if( ! g_pRestore )
     {
@@ -278,7 +278,7 @@ CEUSERLIB_API CeUserLib_Retval Restore_Uninit()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Restore_ListAll( wchar_t*** ppRestorePath, unsigned int* PathCount )
+CEUSERLIB_API CeUserLib_Retval __cdecl Restore_ListAll( wchar_t*** ppRestorePath, unsigned int* PathCount )
 {
     if( ! g_pRestore )
     {
@@ -323,7 +323,7 @@ CEUSERLIB_API CeUserLib_Retval Restore_ListAll( wchar_t*** ppRestorePath, unsign
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Restore_Restore( const wchar_t* BackupPath )
+CEUSERLIB_API CeUserLib_Retval __cdecl Restore_Restore( const wchar_t* BackupPath )
 {
     if( ! g_pRestore )
     {
@@ -348,7 +348,7 @@ CEUSERLIB_API CeUserLib_Retval Restore_Restore( const wchar_t* BackupPath )
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval Restore_RestoreTo( const wchar_t* BackupPath, const wchar_t* ToDirectory )
+CEUSERLIB_API CeUserLib_Retval __cdecl Restore_RestoreTo( const wchar_t* BackupPath, const wchar_t* ToDirectory )
 {
     if( ! g_pRestore )
     {

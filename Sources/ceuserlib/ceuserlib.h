@@ -35,21 +35,21 @@ extern "C"
         CEUSERLIB_AlreadySubscribed
 	} CeUserLib_Retval;
 
-    CEUSERLIB_API CeUserLib_Retval Init();
-    CEUSERLIB_API CeUserLib_Retval Uninit();
-    CEUSERLIB_API const wchar_t* GetLastErrorString();
-    CEUSERLIB_API CeUserLib_Retval SubscribeForBackupEvents( CallBackBackupCallback CallBack );
-    CEUSERLIB_API CeUserLib_Retval UnsubscribeFromBackupEvents();
-    CEUSERLIB_API CeUserLib_Retval SubscribeForCleanupEvents( CallBackCleanupEvent CallBack );
-    CEUSERLIB_API CeUserLib_Retval UnsubscribeFromCleanupEvents();
-    CEUSERLIB_API CeUserLib_Retval ReloadConfig( const wchar_t* IniPath );
-    CEUSERLIB_API int IsDriverStarted();
-    CEUSERLIB_API int IsBackupStarted();
-    CEUSERLIB_API CeUserLib_Retval Start( const wchar_t* IniPath );
-    CEUSERLIB_API CeUserLib_Retval Stop();
-    CEUSERLIB_API CeUserLib_Retval Restore_Init( const wchar_t* IniPath );
-    CEUSERLIB_API CeUserLib_Retval Restore_Uninit();
-    CEUSERLIB_API CeUserLib_Retval Restore_ListAll( wchar_t*** ppRestorePath,  unsigned int* PathCount );
-    CEUSERLIB_API CeUserLib_Retval Restore_Restore( const wchar_t* BackupPath );
-    CEUSERLIB_API CeUserLib_Retval Restore_RestoreTo( const wchar_t* BackupPath, const wchar_t* ToDirectory );
+    CEUSERLIB_API CeUserLib_Retval __cdecl Init();
+    CEUSERLIB_API CeUserLib_Retval __cdecl Uninit();
+    CEUSERLIB_API const wchar_t* __cdecl GetLastErrorString();
+    CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForBackupEvents( CallBackBackupCallback CallBack );
+    CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromBackupEvents();
+    CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForCleanupEvents( CallBackCleanupEvent CallBack );
+    CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromCleanupEvents();
+    CEUSERLIB_API CeUserLib_Retval __cdecl ReloadConfig( const wchar_t* IniPath );
+    CEUSERLIB_API int __cdecl IsDriverStarted();
+    CEUSERLIB_API int __cdecl IsBackupStarted();
+    CEUSERLIB_API CeUserLib_Retval __cdecl Start( const wchar_t* IniPath );
+    CEUSERLIB_API CeUserLib_Retval __cdecl Stop();
+    CEUSERLIB_API CeUserLib_Retval __cdecl Restore_Init( const wchar_t* IniPath );
+    CEUSERLIB_API CeUserLib_Retval __cdecl Restore_Uninit();
+    CEUSERLIB_API CeUserLib_Retval __cdecl Restore_ListAll( wchar_t*** ppRestorePath,  unsigned int* PathCount );
+    CEUSERLIB_API CeUserLib_Retval __cdecl Restore_Restore( const wchar_t* BackupPath );
+    CEUSERLIB_API CeUserLib_Retval __cdecl Restore_RestoreTo( const wchar_t* BackupPath, const wchar_t* ToDirectory );
 }
