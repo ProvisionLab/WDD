@@ -8,8 +8,8 @@
 #define BACKUP_DEFAULT_THREAD_COUNT     2
 #define BACKUP_MAX_THREAD_COUNT         64
 
-typedef void (*CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
-typedef void (*CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
+typedef void (__cdecl *CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
+typedef void (__cdecl *CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
 
 class CBackupClient;
 

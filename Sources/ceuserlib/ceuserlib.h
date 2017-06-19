@@ -15,8 +15,8 @@
 extern "C"
 {
 
-    typedef void (*CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
-    typedef void (*CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
+    typedef void (__cdecl *CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
+    typedef void (__cdecl *CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
 
     typedef enum _CeUserLib_Retval
 	{
