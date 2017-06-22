@@ -25,7 +25,6 @@
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <SampleGuid>{D469D3E0-FEAC-4BF9-90AF-C46E5F411DCA}</SampleGuid>
     <ProjectName>cebackup</ProjectName>
-    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

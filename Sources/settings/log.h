@@ -72,16 +72,16 @@ protected:
 			options_t options = _options;
 
 			// add timestamp
-			if (options & opTime)
+			if( options & opTime )
 			{
 				_TimeStamp t ;
 				buffer += StringFormat(_T("%s "), t.toString().c_str() ) ;
 			}
 			// add thread id, 
-			if (options & opThread)
+			if( options & opThread )
 				buffer += StringFormat(_T("%5u "), ::GetCurrentThreadId() ) ;
 			// add level
-			if (options & opLevel)
+			if( options & opLevel )
 				buffer += StringFormat( _T("[%c] "), GetLevelChar(level) ) ;
 			// add body
 			buffer += Vformat(format, argl);

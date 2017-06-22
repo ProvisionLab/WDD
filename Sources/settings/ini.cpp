@@ -89,7 +89,8 @@ int ini_parse_stream(FILE* stream, ini_handler handler, void* user)
 
 #if !INI_USE_STACK
     line = (char*)malloc(INI_MAX_LINE);
-    if (!line) {
+    if( ! line )
+    {
         return -2;
     }
 #endif

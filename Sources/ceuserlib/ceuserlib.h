@@ -15,8 +15,8 @@
 extern "C"
 {
 
-    typedef void (__cdecl *CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
-    typedef void (__cdecl *CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
+    typedef void (__cdecl *ServerBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
+    typedef void (__cdecl *ServerCleanupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
 
     typedef enum _CeUserLib_Retval
 	{
@@ -38,9 +38,9 @@ extern "C"
     CEUSERLIB_API CeUserLib_Retval __cdecl Init();
     CEUSERLIB_API CeUserLib_Retval __cdecl Uninit();
     CEUSERLIB_API const wchar_t* __cdecl GetLastErrorString();
-    CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForBackupEvents( CallBackBackupCallback CallBack );
+    CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForBackupEvents( ServerBackupCallback CallBack );
     CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromBackupEvents();
-    CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForCleanupEvents( CallBackCleanupEvent CallBack );
+    CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForCleanupEvents( ServerCleanupCallback CallBack );
     CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromCleanupEvents();
     CEUSERLIB_API CeUserLib_Retval __cdecl ReloadConfig( const wchar_t* IniPath );
     CEUSERLIB_API int __cdecl IsDriverStarted();

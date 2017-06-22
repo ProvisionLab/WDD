@@ -24,7 +24,7 @@ void SetStatus(DWORD dwCurrentState, DWORD dwWin32ExitCode = NO_ERROR, DWORD dwW
 
     g_Status.dwCheckPoint = ((dwCurrentState == SERVICE_RUNNING) || (dwCurrentState == SERVICE_STOPPED)) ? 0 : dwCheckPoint++;
 
-    ::SetServiceStatus(g_StatusHandle, &g_Status);
+    ::SetServiceStatus( g_StatusHandle, &g_Status );
 }
 
 void WriteEventLogEntry( LPCTSTR pszMessage, WORD wType = EVENTLOG_ERROR_TYPE )
@@ -75,7 +75,7 @@ void WINAPI ServiceCtrlHandler( DWORD dwCtrl )
                 delete g_pService;
                 g_pService = NULL;
             }
-            catch (...)
+            catch( ... )
             {
                 WriteEventLogEntry(_T("Service: Failed to stop."), EVENTLOG_ERROR_TYPE);
                 SetStatus(dwOriginalState);
@@ -107,11 +107,11 @@ void WINAPI ServiceMain( DWORD dwArgc, LPTSTR* pszArgv )
     g_Status.dwWaitHint                = 0;
 
     g_StatusHandle = RegisterServiceCtrlHandler( g_Name, ServiceCtrlHandler );
-    if (g_StatusHandle)
+    if( g_StatusHandle )
     {
         try
         {
-            SetStatus(SERVICE_START_PENDING);
+            SetStatus( SERVICE_START_PENDING );
             tstring error;
             if( g_pService->Start( g_StrIniPath, error, true ) )
             {
@@ -127,7 +127,7 @@ void WINAPI ServiceMain( DWORD dwArgc, LPTSTR* pszArgv )
                 g_pService = NULL;
             }
         }
-        catch (...)
+        catch( ... )
         {
             WriteEventLogEntry(_T("Service: Failed to start."), EVENTLOG_ERROR_TYPE);
             SetStatus(SERVICE_STOPPED);

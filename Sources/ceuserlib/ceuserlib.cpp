@@ -16,8 +16,8 @@ static void __cdecl InitializeLog()
     }
 }
 
-CallBackBackupCallback g_BackupEvent = NULL;
-CallBackCleanupEvent g_CleanupEvent = NULL;
+ServerBackupCallback g_BackupEvent = NULL;
+ServerCleanupCallback g_CleanupEvent = NULL;
 
 static TCHAR* __cdecl AllocateCSharpString( const tstring& str )
 {
@@ -170,7 +170,7 @@ CEUSERLIB_API CeUserLib_Retval __cdecl ReloadConfig( const wchar_t* IniPath )
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForBackupEvents( CallBackBackupCallback CallBack )
+CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForBackupEvents( ServerBackupCallback CallBack )
 {
     if( g_BackupEvent )
     {
@@ -194,7 +194,7 @@ CEUSERLIB_API CeUserLib_Retval __cdecl UnsubscribeFromBackupEvents()
     return CEUSERLIB_OK;
 }
 
-CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForCleanupEvents( CallBackCleanupEvent CallBack )
+CEUSERLIB_API CeUserLib_Retval __cdecl SubscribeForCleanupEvents( ServerCleanupCallback CallBack )
 {
     if( g_CleanupEvent )
     {

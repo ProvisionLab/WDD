@@ -8,8 +8,8 @@
 #define BACKUP_DEFAULT_THREAD_COUNT     2
 #define BACKUP_MAX_THREAD_COUNT         64
 
-typedef void (__cdecl *CallBackBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
-typedef void (__cdecl *CallBackCleanupEvent)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
+typedef void (__cdecl *ServerBackupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted, HANDLE Pid );
+typedef void (__cdecl *ServerCleanupCallback)( const wchar_t* SrcPath, const wchar_t* DstPath, int Deleted );
 
 class CBackupClient;
 
@@ -71,8 +71,8 @@ public:
     bool IsStarted();
     bool ReloadConfig( const tstring& IniPath, tstring& Error );
     bool LockAccess();
-    bool SetBackupCallback( CallBackBackupCallback BackupEvent );
-    bool SetCleanupCallback( CallBackCleanupEvent CleanupEvent );
+    bool SetBackupCallback( ServerBackupCallback BackupEvent );
+    bool SetCleanupCallback( ServerCleanupCallback CleanupEvent );
 
 private:
     bool ScanRepositoryData();
@@ -99,6 +99,6 @@ private:
     HANDLE _Threads[BACKUP_MAX_THREAD_COUNT];
     std::map<tstring, CBackupFile> _mapBackupFiles; // <SrcPath, DstFile>
     __int64 _BackupFolderSize;
-    CallBackBackupCallback _BackupEvent;
-    CallBackCleanupEvent _CleanupEvent;
+    ServerBackupCallback _BackupEvent;
+    ServerCleanupCallback _CleanupEvent;
 };

@@ -6,7 +6,7 @@
     <RemoteDebuggerServerName>VmWin10</RemoteDebuggerServerName>
     <RemoteDebuggerConnection>RemoteWithAuthentication</RemoteDebuggerConnection>
     <DeploymentDirectory>C:\Max</DeploymentDirectory>
-    <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerCommandArguments>restore_to c:\777.txt.1 c:\max\restore</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
     <RemoteDebuggerCommandArguments>listall</RemoteDebuggerCommandArguments>

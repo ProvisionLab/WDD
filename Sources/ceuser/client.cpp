@@ -691,7 +691,7 @@ void CBackupClient::BackupWorker( HANDLE Completion, HANDLE Port )
         if( hr == HRESULT_FROM_WIN32( ERROR_INVALID_HANDLE ) )
         {
             // CeedoBackup port disconnected.
-            TRACE_INFO( _T("CEUSER: Port is disconnected, probably due to scanner filter unloading") );
+            TRACE_DEBUG( _T("CEUSER: Port is disconnected, due to scanner filter unloading or client beeing stopped") );
         }
         else
         {
@@ -864,7 +864,7 @@ CSettings& CBackupClient::GetSettings()
     return _Settings;
 }
 
-bool CBackupClient::SetBackupCallback( CallBackBackupCallback BackupEvent )
+bool CBackupClient::SetBackupCallback( ServerBackupCallback BackupEvent )
 {
     CAutoLock lock( &_guardCallback );
     _BackupEvent = BackupEvent;
@@ -872,7 +872,7 @@ bool CBackupClient::SetBackupCallback( CallBackBackupCallback BackupEvent )
     return true;
 }
 
-bool CBackupClient::SetCleanupCallback( CallBackCleanupEvent CleanupEvent )
+bool CBackupClient::SetCleanupCallback( ServerCleanupCallback CleanupEvent )
 {
     CAutoLock lock( &_guardCallback );
     _CleanupEvent = CleanupEvent;
